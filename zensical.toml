@@ -1,0 +1,216 @@
+# Project information
+[project]
+site_name = "Regression Modeling in Social Sciences"
+site_url = "https://ssric-reg.ttezcan.com/"
+docs_dir = "docs"
+site_dir = "site"
+
+# Repository
+repo_url = "https://github.com/ttezcann/ssric-reg"
+repo_name = "ssric-reg"
+edit_uri = "edit/main/docs/"
+
+# Site tree
+nav = [
+  { "Home" = "index.md" },
+  { "Resources" = [
+    { "Site guide" = "resources/site-guide.md" },
+    { "Variables in GSS" = "resources/variables-in-gss.md" },
+    { "RStudio install/usage" = "resources/rstudio-install-usage.md" },
+    { "Other datasets" = "resources/other-datasets.md" },
+  ]},
+  { "Explore" = [
+    { "Glossary" = "explore/glossary.md" },
+    { "Site graph" = "explore/site-graph.md" },
+    { "Content tags" = "explore/content-tags.md" },
+  ]},
+  { "Modules" = [
+    { "01. Introduction to RStudio" = "modules/01.-introduction-to-rstudio.md" },
+    { "02. Introduction to data and scripting" = "modules/02.-introduction-to-data-and-scripting.md" },
+    { "03. Descriptive statistics" = "modules/03.-descriptive-statistics.md" },
+    { "04. Recoding variables" = "modules/04.-recoding-variables.md" },
+    { "05. Computing variables" = "modules/05.-computing-variables.md" },
+    { "06. Chi-square analysis" = "modules/06.-chi-square-analysis.md" },
+    { "07. T-test analysis" = "modules/07.-t-test-analysis.md" },
+    { "08. Probabilistic sampling" = "modules/08.-probabilistic-sampling.md" },
+    { "09. Visualization" = "modules/09.-visualization.md" },
+    { "10. Correlation analysis" = "modules/10.-correlation-analysis.md" },
+    { "11. Linear regression basics" = "modules/11.-linear-regression-basics.md" },
+    { "12. Dummy variables" = "modules/12.-dummy-variables.md" },
+    { "13. Logistic regression basics" = "modules/13.-logistic-regression-basics.md" },
+    { "14. Modeling exercises" = "modules/14.-modeling-exercises.md" },
+    { "15. Regression assumptions and diagnostics" = "modules/15.-regression-assumptions-diagnostics.md" },
+  ]},
+  { "For faculty" = [
+    { "Knotis documentation" = "for-faculty/knotis-documentation.md" },
+  ]},
+]
+
+# Knotis settings
+## Content
+[project.extra.knotis.content]
+heading_numbering = true
+heading_guides = true
+generator = true
+styled_section_groups = true
+
+## Wikilinks
+[project.extra.knotis.wikilinks]
+default = "#0197a7"
+slate = "#fda4af"
+
+## Pane
+[project.extra.knotis.pane]
+width = 750
+initial_lines = 12
+initial_list_items = 20
+chunk_lines = 4
+order = []
+
+### Pane path
+[project.extra.knotis.pane.path]
+enabled = true
+include_paths = ["modules"]
+exclude_paths = []
+
+## Graphs
+### Site graph
+[project.extra.knotis.site_graph.graph]
+enabled = true
+default_view = "all"
+exclude_tags = []
+exclude_paths = ["for-faculty"]
+exclude_wikilinks = []
+
+### Page graph
+[project.extra.knotis.page_graph.graph]
+enabled = true
+exclude_paths = []
+exclude_wikilinks = []
+
+### Concept graph
+[project.extra.knotis.concept_graph.graph]
+enabled = true
+exclude_paths = []
+exclude_wikilinks = []
+
+## Content tags
+[project.extra.knotis.content_tags]
+enabled = true
+nav_chips = true
+order = ["code", "output", "interpretation"]
+
+[project.extra.knotis.content_tags.colors.default]
+code = "#b45309"
+output = "#067647"
+interpretation = "#175cd3"
+
+[project.extra.knotis.content_tags.colors.slate]
+code = "#ffbf7d"
+output = "#79d7a7"
+interpretation = "#86bbff"
+
+## Glossary
+[project.extra.knotis.glossary]
+enabled = true
+default_view = "by_page"
+page_view_label = "Modules"
+exclude_paths = []
+order = ["modules"]
+
+## Slide mode
+[project.extra.knotis.slides]
+enabled = true
+include_paths = ["modules"]
+exclude_paths = []
+fit_min_font_px = 26
+fit_max_font_px = 42
+content_fill = 0.99
+content_inset = [2, 2, 2, 2]
+
+## Search
+[project.extra.knotis.search]
+enabled = true
+exclude_paths = ["for-faculty"]
+exclude_wikilinks = []
+order = []
+
+## Read Aloud
+[project.extra.knotis.readaloud]
+enabled = true
+
+# Zensical settings
+## Theme settings
+[project.theme]
+custom_dir = "overrides"
+variant = "modern"
+font = false
+primary = "indigo"
+accent = "indigo"
+features = [
+  "navigation.footer",
+  "navigation.instant",
+  "navigation.instant.progress",
+  "navigation.top",
+  "navigation.expand",
+  "toc.follow",
+  "content.code.copy",
+  "content.code.annotate",
+  "content.tooltips",
+  "content.tabs.link",
+  "content.action.view",
+]
+
+[[project.theme.palette]]
+scheme = "default"
+primary = "teal"
+accent = "teal"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+scheme = "slate"
+primary = "teal"
+accent = "orange"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+logo = "lucide/chart-column"
+
+# Markdown extensions
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.md_in_html]
+[project.markdown_extensions.sane_lists]
+[project.markdown_extensions.tables]
+[project.markdown_extensions.footnotes]
+[project.markdown_extensions.abbr]
+[project.markdown_extensions.toc]
+permalink = true
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+[project.markdown_extensions.pymdownx.inlinehilite]
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+[project.markdown_extensions.pymdownx.caret]
+[project.markdown_extensions.pymdownx.mark]
+[project.markdown_extensions.pymdownx.tilde]
+[project.markdown_extensions.pymdownx.keys]
+[project.markdown_extensions.pymdownx.critic]
+[project.markdown_extensions.pymdownx.snippets]
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
+[project.markdown_extensions.pymdownx.emoji]
+emoji_index = "zensical.extensions.emoji.twemoji"
+emoji_generator = "zensical.extensions.emoji.to_svg"
+[project.markdown_extensions.pymdownx.arithmatex]
+generic = true
