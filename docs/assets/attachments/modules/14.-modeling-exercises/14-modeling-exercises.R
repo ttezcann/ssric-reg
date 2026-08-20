@@ -1,7 +1,7 @@
 ### Modeling exercises ###
 
 # Refresh data and packages -----------------------------------------------
-source(url("https://raw.githubusercontent.com/ttezcann/ssric-reg/refs/heads/main/docs/assets/r-scripts/0-packages-data-trashball.R"))
+source(url("https://raw.githubusercontent.com/ttezcann/ssric-reg/refs/heads/main/docs/assets/attachments/data/0-packages-data-trashball.R"))
 
 
 # Logistic regression -----------------------------------------------------
