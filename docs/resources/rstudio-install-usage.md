@@ -83,17 +83,6 @@ tags:
         2. Check the time period.
         3. Check how many hours you have spent.
 
-## What to do if you exceed 25 hours per month?
-- 25 hours of connect time is enough for the modules. If you exceed this limit, open another free account using a different email address.
-
-## What to do if you want your new free account to be identical (files, packages, etc.) to the previous account where you exceeded the time limit?
-- Go to the previous account where you exceeded the time limit.
-    - ![Posit Cloud “Your Content” page showing (1) the project export/download icon, (2) a pop-up with a “Download” button to save the exported project, and (3) the RStudio Files pane highlighting the “Upload” button for importing files.](../assets/attachments/resources/rstudio-install-usage/download.png){width="500"}
-        1. Click "Export"
-        2. Click "Download"
-            1. It will download a zip file.
-        3. Go to your new account. Upload that zip file to your new account.
-
 
 
 
