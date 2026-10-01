@@ -381,16 +381,17 @@ check_collinearity <- function(...) {
 ifelse <- function(test, yes, no, label = NULL) {
   test_expr <- substitute(test)
   env <- parent.frame()
-  result <- .run_with_viewer_feedback({
+  result <- .run_with_viewer_success({
     .check_variable_references(test_expr, env)
-    base::ifelse(test, yes, no)})
+    base::ifelse(test, yes, no)}, label = label)
   if (!is.null(label)) attr(result, "label") <- label
   result}
 
 ## structure - variable labeling----
 structure <- function(.Data, ..., label = NULL) {
-  result <- .run_with_viewer_feedback({
-    base::structure(.Data, ...)})
+  result <- .run_with_viewer_success({
+    base::structure(.Data, ...)}, label = label,
+    show_counts = .call_name(substitute(.Data)) != "rowMeans")
   if (!is.null(label)) attr(result, "label") <- label
   result}
 
@@ -398,9 +399,9 @@ structure <- function(.Data, ..., label = NULL) {
 rec <- function(x, rec, var.label = NULL, ...) {
   x_expr <- substitute(x)
   env <- parent.frame()
-  result <- .run_with_viewer_feedback({
+  result <- .run_with_viewer_success({
     .check_variable_references(x_expr, env)
-    sjmisc::rec(x, rec = rec, var.label = var.label, ...)})
+    sjmisc::rec(x, rec = rec, var.label = var.label, ...)}, label = var.label)
   if (!is.null(var.label)) attr(result, "label") <- var.label
   result}
 
@@ -408,6 +409,7 @@ rec <- function(x, rec, var.label = NULL, ...) {
 
 .current_warnings <- character(0)
 .viewer_error_shown <- FALSE
+.feedback_depth <- 0L
 
 .clean_msg <- function(msg) {
   msg <- gsub("\033\\[[0-9;]*m", "", msg)
@@ -418,18 +420,24 @@ rec <- function(x, rec, var.label = NULL, ...) {
   msg}
 
 .show_viewer <- function(html) {
-  if (!rstudioapi::isAvailable()) return(invisible())
-  tmp <- tempfile(fileext = ".html")
-  writeLines(paste0(
-    "<html><body style='font-family:sans-serif;padding:20px'>",
-    html,
-    "</body></html>"), tmp)
-  rstudioapi::viewer(tmp)}
+  tryCatch({
+    if (!rstudioapi::isAvailable()) stop("RStudio Viewer is unavailable.", call. = FALSE)
+    tmp <- tempfile(fileext = ".html")
+    writeLines(paste0(
+      "<html><body style='font-family:sans-serif;padding:20px'>",
+      html,
+      "</body></html>"), tmp)
+    rstudioapi::viewer(tmp)
+    invisible(TRUE)
+  }, error = function(e) {
+    message("Viewer feedback could not be displayed: ", conditionMessage(e))
+    message(gsub("<[^>]*>", " ", html))
+    invisible(FALSE)})}
 
 ## variable creation success ----
 .call_name <- function(expr) {
   if (!is.call(expr)) return("")
-  deparse(expr[[1]])}
+  paste(deparse(expr[[1]]), collapse = " ")}
 
 .is_variable_success_call <- function(expr) {
   is.call(expr) && .call_name(expr) %in% c("rec", "ifelse", "structure")}
@@ -443,19 +451,35 @@ rec <- function(x, rec, var.label = NULL, ...) {
   if (is.call(lhs) && .call_name(lhs) == "$") return(deparse(lhs[[3]]))
   deparse(lhs)}
 
-if (!"variable_created_success_callback" %in% names(getTaskCallbackNames())) {
-  addTaskCallback(function(expr, value, ok, visible) {
+.variable_created_success_callback <- function(expr, value, ok, visible) {
+  on.exit({
+    .current_warnings <<- character(0)
+    .viewer_error_shown <<- FALSE}, add = TRUE)
+  tryCatch({
     if (!ok || !is.call(expr) || length(expr) < 3) return(TRUE)
-    if (deparse(expr[[1]]) %in% c("<-", "=") && .is_variable_success_call(expr[[3]])) {
+    if (.call_name(expr) %in% c("<-", "=") && .is_variable_success_call(expr[[3]]) &&
+        !.viewer_error_shown && length(.current_warnings) == 0) {
       .show_success(value, attr(value, "label"), !.is_structure_rowmeans_call(expr[[3]]), .get_lhs_variable_name(expr))}
-    TRUE
-  }, name = "variable_created_success_callback")}
+  }, error = function(e) {
+    message("Variable feedback failed: ", conditionMessage(e))
+    tryCatch(.show_error(e), error = function(e) message(conditionMessage(e)))})
+  TRUE}
+
+.ensure_viewer_feedback <- function() {
+  if (!"variable_created_success_callback" %in% getTaskCallbackNames()) {
+    addTaskCallback(.variable_created_success_callback, name = "variable_created_success_callback")}
+  options(error = .course_error_handler)
+  invisible()}
 
 .get_recent_warnings <- function() {
   if (length(.current_warnings) == 0) return("")
   paste(.current_warnings, collapse = "\n")}
 
 .with_feedback <- function(expr, show_success = FALSE, label = NULL, show_counts = TRUE, variable_name = NULL) {
+  if (.feedback_depth > 0L) return(force(expr))
+  .ensure_viewer_feedback()
+  .feedback_depth <<- .feedback_depth + 1L
+  on.exit(.feedback_depth <<- .feedback_depth - 1L, add = TRUE)
   .current_warnings <<- character(0)
   .viewer_error_shown <<- FALSE
 
@@ -468,8 +492,9 @@ if (!"variable_created_success_callback" %in% names(getTaskCallbackNames())) {
       .show_error(e)
       stop(e)})
 
-  if (length(.current_warnings) > 0) .show_warning()
-  if (show_success) .show_success(result, label, show_counts, variable_name)
+  if (length(.current_warnings) > 0) {
+    .show_warning()
+  } else if (show_success) .show_success(result, label, show_counts, variable_name)
   result}
 
 .extract_backtick_names <- function(source_msg) {
@@ -807,6 +832,7 @@ has_incorrect_code_problem <- grepl(
     ) else ""))}
 
 .show_success <- function(result, label, show_counts = TRUE, variable_name = NULL) {
+  if (length(.current_warnings) > 0) return(.show_warning())
   .viewer_error_shown <<- FALSE
   lbl <- if (!is.null(label) && nzchar(label)) label else attr(result, "label")
   lbl <- if (!is.null(lbl) && nzchar(lbl)) lbl else "(no label)"
@@ -825,25 +851,25 @@ counts <- tryCatch({
   if (!is.null(value_labels)) {
     label_lookup <- setNames(names(value_labels), as.character(unname(value_labels)))
     label_names <- names(label_lookup)
-    value_label_text <- ifelse(value_names %in% label_names, label_lookup[value_names], ifelse(value_names == "NA", "Missing", ""))
+    value_label_text <- base::ifelse(value_names %in% label_names, label_lookup[value_names], base::ifelse(value_names == "NA", "Missing", ""))
     missing_label_values <- label_names[!label_names %in% value_names]
     if (length(missing_label_values) > 0) {
       missing_tbl <- setNames(rep(0, length(missing_label_values)), missing_label_values)
       tbl <- c(tbl, missing_tbl)
       value_names <- names(tbl)
-      value_label_text <- ifelse(value_names %in% label_names, label_lookup[value_names], ifelse(value_names == "NA", "Missing", ""))
+      value_label_text <- base::ifelse(value_names %in% label_names, label_lookup[value_names], base::ifelse(value_names == "NA", "Missing", ""))
       label_order <- c(label_names[label_names %in% value_names], setdiff(value_names, label_names))
       tbl <- tbl[label_order]
       value_names <- names(tbl)
-      value_label_text <- ifelse(value_names %in% label_names, label_lookup[value_names], ifelse(value_names == "NA", "Missing", ""))
+      value_label_text <- base::ifelse(value_names %in% label_names, label_lookup[value_names], base::ifelse(value_names == "NA", "Missing", ""))
     }
-  } else { value_label_text <- ifelse(value_names == "NA", "Missing", "") }
+  } else { value_label_text <- base::ifelse(value_names == "NA", "Missing", "") }
 
 missing_row <- is.na(value_names) | value_names == "" | value_names == "NA"
 valid_total <- sum(as.integer(tbl)[!missing_row])
 valid_pct <- rep(NA_real_, length(tbl))
 valid_pct[!missing_row] <- as.integer(tbl)[!missing_row] / valid_total * 100
-valid_pct_text <- ifelse(missing_row, "", paste0(formatC(valid_pct, format = "f", digits = 1), "%"))
+valid_pct_text <- base::ifelse(missing_row, "", paste0(formatC(valid_pct, format = "f", digits = 1), "%"))
 
 counts_df <- data.frame(Value = value_names, Label = value_label_text, Frequency = as.integer(tbl),
   valid.prc = valid_pct_text, check.names = FALSE)
@@ -905,30 +931,17 @@ make_space_tolerant_data <- function(data) {
 if (exists("gss", envir = .GlobalEnv)) {
   gss <- make_space_tolerant_data(gss) }
 
-options(error = function() {
+.course_error_handler <- function() {
+  on.exit(.viewer_error_shown <<- FALSE, add = TRUE)
   if (.viewer_error_shown) {
     .viewer_error_shown <<- FALSE
     return(invisible())}
 
   .current_warnings <<- character(0)
+  tryCatch(.show_error(simpleError(geterrmessage())),
+    error = function(e) message("Error feedback failed: ", conditionMessage(e)))}
 
-  if (rstudioapi::isAvailable()) {
-    msg <- .clean_msg(geterrmessage())
-    sections <- .problem_sections(msg)
-    tmp <- tempfile(fileext = ".html")
-
-    writeLines(paste0(
-      "<html><body style='font-family:sans-serif;padding:20px'>",
-      .error_checklist,
-      sections,
-      if (!nzchar(sections)) paste0(
-        "<hr><p><b>Error message:</b></p>",
-        "<pre style='background:#f5f5f5;padding:10px;color:#cc0000;",
-        "white-space:pre-wrap;overflow-wrap:anywhere'>",
-        msg,
-        "</pre>"
-      ) else "",
-      "</body></html>"), tmp)
-
-    
-    rstudioapi::viewer(tmp)}})
+## install feedback once per session; reload replaces older callbacks ----
+while ("variable_created_success_callback" %in% getTaskCallbackNames()) {
+  removeTaskCallback("variable_created_success_callback")}
+.ensure_viewer_feedback()
