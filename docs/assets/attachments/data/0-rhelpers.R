@@ -396,11 +396,28 @@ structure <- function(.Data, ..., label = NULL) {
   result}
 
 ## rec with viewer success ----
+.check_recode_rules <- function(rec) {
+  rules <- trimws(regmatches(rec, gregexpr("[^;]+;?", rec))[[1]])
+  incomplete_rules <- rules[grepl("=\\s*(\\[[^]]*\\])?\\s*;?$", rules)]
+  if (length(incomplete_rules) > 0) stop(
+    paste0("There's a problem in this line:\n", incomplete_rules[1]), call. = FALSE)
+  for (rule in rules) {
+    rule_code <- rule
+    labels <- gregexpr("\\[[^]]*\\]", rule_code)
+    regmatches(rule_code, labels) <- lapply(regmatches(rule_code, labels),
+      function(x) gsub("[^\r\n]", " ", x))
+    next_rule <- regexpr("\r?\n[ \t]*[^=\\[\\]\r\n]+=", rule_code, perl = TRUE)[1]
+    if (next_rule > 0) {
+      lines <- trimws(strsplit(substr(rule, 1, next_rule - 1), "\n", fixed = TRUE)[[1]])
+      stop(paste0("There's a problem in this line:\n", tail(lines[nzchar(lines)], 1)),
+        call. = FALSE)}}}
+
 rec <- function(x, rec, var.label = NULL, ...) {
   x_expr <- substitute(x)
   env <- parent.frame()
   result <- .run_with_viewer_success({
     .check_variable_references(x_expr, env)
+    .check_recode_rules(rec)
     sjmisc::rec(x, rec = rec, var.label = var.label, ...)}, label = var.label)
   if (!is.null(var.label)) attr(result, "label") <- var.label
   result}
@@ -732,9 +749,13 @@ rec <- function(x, rec, var.label = NULL, ...) {
 .incorrect_code_warning <- function(msg) {
   recent_warnings <- .clean_msg(.get_recent_warnings())
   combined_msg <- paste(msg, recent_warnings, sep = "\n")
+  recode_problem <- regmatches(combined_msg,
+    regexpr("There's a problem in this line:\n[^\n]+", combined_msg))
 
 has_incorrect_code_problem <- grepl(
   paste0(
+    "There's a problem in this line:|",
+    "Syntax error in argument|",
     "Code arguments are missing|",
     "argument is missing|",
     "argument [0-9]+ is empty|",
@@ -764,7 +785,7 @@ has_incorrect_code_problem <- grepl(
     "<p><b>Problem found:</b></p>",
     "<pre style='background:#f5f5f5;padding:10px;color:#cc0000;",
     "white-space:pre-wrap;overflow-wrap:anywhere'>",
-    "The code is incomplete. Code arguments are missing.",
+    if (length(recode_problem) > 0) recode_problem else "The code is incomplete. Code arguments are missing.",
     "</pre>",
     "<p>This error happens for one of these reasons:</p>",
     "<ol>",
