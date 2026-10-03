@@ -7,11 +7,11 @@ source(url("https://raw.githubusercontent.com/ttezcann/ssric-reg/refs/heads/main
 
 # Dummy variable: Categorical (nominal/ordinal) - class -------------------
 gss$lowerclass <- 
-ifelse(gss$class == 1, 1, 0 | gss$class == 2, 1, 0,
+ifelse(gss$class == 1 | gss$class == 2, 1, 0,
 label = "Perceiving as lower class")
 
 gss$higherclass <- 
-ifelse(gss$class == 3, 1, 0 | gss$class == 4, 1, 0,
+ifelse(gss$class == 3 | gss$class == 4, 1, 0,
 label = "Perceiving as higher class")
 
 

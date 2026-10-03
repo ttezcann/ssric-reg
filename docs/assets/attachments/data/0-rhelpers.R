@@ -55,6 +55,14 @@ frq <- function(x, ..., out = "v") {
 ## descriptive table----
 descr <- function(x, ..., show = "short", out = "v") {
   .run_with_viewer_feedback({
+    dots <- as.list(substitute(list(...)))[-1]
+    dot_names <- names(dots)
+    valid_dot_names <- c("max.length", "weights", "encoding", "file")
+    unknown <- which(nzchar(dot_names) & !dot_names %in% valid_dot_names)
+    if (length(unknown) > 0) stop(paste0("unused argument (", dot_names[unknown[1]], " = ",
+      paste(deparse(dots[[unknown[1]]]), collapse = " "), ")"), call. = FALSE)
+    show <- match.arg(show, c("all", "short", "type", "label", "n", "NA.prc", "mean", "sd",
+      "se", "md", "trimmed", "range", "iqr", "skew"), several.ok = TRUE)
     x_expr <- substitute(x)
     x_name <- deparse(x_expr)
     var_name <- sub(".*\\$", "", x_name)
@@ -78,7 +86,15 @@ plot_frq <- function(...) {
 
 ## chisquare----
 sjt.xtab <- function(...) {
+  env <- parent.frame()
   .run_with_viewer_feedback({
+    call_args <- as.list(substitute(list(...)))[-1]
+    defaults <- formals(sjPlot::sjt.xtab)
+    logical_options <- names(defaults)[vapply(defaults, is.logical, logical(1))]
+    for (name in intersect(names(call_args), logical_options)) {
+      argument <- call_args[[name]]
+      if (is.symbol(argument) && !exists(as.character(argument), envir = env, inherits = TRUE)) {
+        stop(paste0('Incorrect value for argument "', name, '".'), call. = FALSE)}}
     result <- sjPlot::sjt.xtab(...)
     add_stars_to_html <- function(html) {
       if (is.null(html) || !nzchar(html)) return(html)
@@ -328,10 +344,7 @@ tab_model <- function(...) {
 
   .show_viewer(paste0(
     "<h3 style='color:#2a7a2a'>", title, "</h3>",
-    "<pre style='background:#f5f5f5;padding:10px;color:#000000;",
-    "white-space:pre-wrap;overflow-wrap:anywhere'>",
-    result_text,
-    "</pre>"
+    .feedback_code_box(result_text, "#000000")
   ))
 }
 
@@ -398,6 +411,17 @@ structure <- function(.Data, ..., label = NULL) {
 ## rec with viewer success ----
 .check_recode_rules <- function(rec) {
   rules <- trimws(regmatches(rec, gregexpr("[^;]+;?", rec))[[1]])
+  for (rule in rules) {
+    left <- trimws(sub("=.*$", "", rule))
+    items <- trimws(strsplit(left, ",", fixed = TRUE)[[1]])
+    malformed <- !nzchar(left) || any(!nzchar(items)) || any(vapply(items, function(item) {
+      range <- trimws(strsplit(item, ":", fixed = TRUE)[[1]])
+      if (grepl(":", item, fixed = TRUE)) {
+        length(range) != 2 || any(!nzchar(range)) || any(grepl("[[:space:]]", range))
+      } else grepl("[[:space:]]", item)
+    }, logical(1)))
+    if (malformed) stop(
+      paste0("There's a problem in this line:\n", rule), call. = FALSE)}
   incomplete_rules <- rules[grepl("=\\s*(\\[[^]]*\\])?\\s*;?$", rules)]
   if (length(incomplete_rules) > 0) stop(
     paste0("There's a problem in this line:\n", incomplete_rules[1]), call. = FALSE)
@@ -410,15 +434,44 @@ structure <- function(.Data, ..., label = NULL) {
     if (next_rule > 0) {
       lines <- trimws(strsplit(substr(rule, 1, next_rule - 1), "\n", fixed = TRUE)[[1]])
       stop(paste0("There's a problem in this line:\n", tail(lines[nzchar(lines)], 1)),
-        call. = FALSE)}}}
+        call. = FALSE)}}
+  closing_without_opening <- rules[
+    lengths(regmatches(rules, gregexpr("]", rules, fixed = TRUE))) >
+      lengths(regmatches(rules, gregexpr("[", rules, fixed = TRUE)))]
+  if (length(closing_without_opening) > 0) stop(
+    paste0("There's a problem in this line:\n", closing_without_opening[1]), call. = FALSE)
+  problem_rules <- rules[lengths(regmatches(rules, gregexpr("[", rules, fixed = TRUE))) !=
+    lengths(regmatches(rules, gregexpr("]", rules, fixed = TRUE)))]
+  if (length(problem_rules) > 0) problem_rules[1] else NULL}
+
+.check_recode_assignment <- function() {
+  context <- .feedback_source()
+  if (is.null(context)) return(invisible())
+  for (selection in context$selection) {
+    if (is.null(selection$text) || !nzchar(selection$text)) next
+    lines <- strsplit(selection$text, "\n", fixed = TRUE)[[1]]
+    nonblank <- which(nzchar(trimws(lines)))
+    if (length(nonblank) < 2) next
+    for (i in seq_len(length(nonblank) - 1)) {
+      current <- trimws(lines[nonblank[i]])
+      following <- trimws(lines[nonblank[i + 1]])
+      if (grepl("^[[:alnum:]_.]+\\$[[:alnum:]_.]+$", current) &&
+          grepl("^rec[[:space:]]*\\(", following)) {
+        stop(paste0("There's a problem in this line:\n", current), call. = FALSE)}}}
+  invisible()}
 
 rec <- function(x, rec, var.label = NULL, ...) {
   x_expr <- substitute(x)
   env <- parent.frame()
   result <- .run_with_viewer_success({
+    .check_recode_assignment()
     .check_variable_references(x_expr, env)
-    .check_recode_rules(rec)
-    sjmisc::rec(x, rec = rec, var.label = var.label, ...)}, label = var.label)
+    problem_line <- .check_recode_rules(rec)
+    result <- sjmisc::rec(x, rec = rec, var.label = var.label, ...)
+    if (!is.null(problem_line) && any(is.infinite(suppressWarnings(as.numeric(result))), na.rm = TRUE)) {
+      attr(result, ".recode_problem_line") <- problem_line
+      attr(result, ".recode_problem_location") <- .resolve_feedback_location(fragment = problem_line)}
+    result}, label = var.label)
   if (!is.null(var.label)) attr(result, "label") <- var.label
   result}
 
@@ -427,6 +480,339 @@ rec <- function(x, rec, var.label = NULL, ...) {
 .current_warnings <- character(0)
 .viewer_error_shown <- FALSE
 .feedback_depth <- 0L
+.current_warning_location <- NULL
+.last_parse_feedback <- NULL
+
+## locate feedback in the student's current source ----
+.feedback_source <- function() {
+  tryCatch({
+    for (frame in rev(sys.frames())) {
+      if (!exists("srcfile", frame, inherits = FALSE)) next
+      src <- get("srcfile", frame, inherits = FALSE)
+      if (inherits(src, "srcfile") && !is.null(src$filename) && file.exists(src$filename)) {
+        return(list(id = src$filename, path = src$filename,
+          contents = if (!is.null(src$lines)) src$lines else readLines(src$filename, warn = FALSE),
+          selection = list()))}}
+    if (!requireNamespace("rstudioapi", quietly = TRUE) || !rstudioapi::isAvailable()) return(NULL)
+    context <- rstudioapi::getSourceEditorContext()
+    if (is.null(context$contents) || identical(context$id, "#console")) return(NULL)
+    context
+  }, error = function(e) NULL)}
+
+.feedback_escape <- function(text) {
+  text <- gsub("&", "&amp;", text, fixed = TRUE)
+  text <- gsub("<", "&lt;", text, fixed = TRUE)
+  gsub(">", "&gt;", text, fixed = TRUE)}
+
+.feedback_parse <- function(lines) {
+  src <- srcfilecopy("<student code>", lines)
+  error <- NULL
+  expressions <- tryCatch(parse(text = lines, srcfile = src, keep.source = TRUE),
+    error = function(e) {error <<- conditionMessage(e); NULL})
+  data <- getParseData(src, includeText = TRUE)
+  if (is.null(data) && !is.null(error) && grepl("pipe", error, fixed = TRUE) &&
+      any(grepl("|>", lines, fixed = TRUE))) {
+    projected <- .feedback_parse(gsub("|>", "%>%", lines, fixed = TRUE))
+    if (!is.null(projected$data)) return(projected)}
+  list(data = data, error = error, expressions = expressions)}
+
+.feedback_parse_line <- function(parsed, lines) {
+  position <- regmatches(parsed$error, regexec(":([0-9]+):([0-9]+)(:|\\))", parsed$error))[[1]]
+  if (length(position) < 3) return(NA_integer_)
+  row <- as.integer(position[2])
+  col <- as.integer(position[3])
+  data <- parsed$data
+  if (!is.null(data)) {
+    tokens <- data[data$terminal & data$token != "COMMENT", ]
+    tokens <- tokens[order(tokens$line1, tokens$col1), ]
+    for (i in which(tokens$token == "STR_CONST" & tokens$line2 > tokens$line1)) {
+      end <- tail(strsplit(tokens$text[i], "\n", fixed = TRUE)[[1]], 1)
+      if (grepl("^[ \\t]*[.[:alpha:]][.[:alnum:]_]*[ \\t]*=[ \\t]*[\"']$", end)) {
+        return(tokens$line2[i] - 1L)}}
+    if (nrow(tokens) > 1) for (i in seq_len(nrow(tokens) - 1)) {
+      if (tokens$token[i] == "SYMBOL" && exists(tokens$text[i], mode = "function") &&
+          tokens$line1[i + 1] > tokens$line2[i] &&
+          tokens$token[i + 1] %in% c("SYMBOL", "SYMBOL_SUB", "STR_CONST", "NUM_CONST")) {
+        later <- tokens[tokens$line1 == tokens$line1[i + 1], ]
+        if (!any(later$token == "LEFT_ASSIGN")) return(tokens$line1[i])}}
+    for (i in which(tokens$token == "SYMBOL_FUNCTION_CALL")) {
+      name <- tokens$text[i]
+      if (exists(name, mode = "function") || nchar(name) < 2) next
+      splits <- seq_len(nchar(name) - 1)
+      joined <- vapply(splits, function(at) {
+        exists(substr(name, 1, at), mode = "function") &&
+          exists(substring(name, at + 1), mode = "function")}, logical(1))
+      if (sum(joined) == 1) return(tokens$line1[i])}
+    {
+      stack <- character(0)
+      delimiters <- character(0)
+      opening_rows <- integer(0)
+      for (i in seq_len(nrow(tokens))) {
+        text <- tokens$text[i]
+        if (text %in% c("(", "[", "[[")) {
+          name <- if (text == "(" && i > 1) tokens$text[i - 1] else ""
+          stack <- c(stack, name)
+          delimiters <- c(delimiters, text)
+          opening_rows <- c(opening_rows, tokens$line1[i])
+        } else if (text %in% c(")", "]", "]]") && length(stack) > 0) {
+          expected <- c(")" = "(", "]" = "[", "]]" = "[[")[[text]]
+          if (tail(delimiters, 1) != expected) {
+            return(if (text == "]") tokens$line1[i] else tail(opening_rows, 1))}
+          stack <- head(stack, -1)
+          delimiters <- head(delimiters, -1)
+          opening_rows <- head(opening_rows, -1)
+        } else if (row > length(lines) && (tokens$token[i] == "PIPE" || text == "%>%") && length(stack) > 0) {
+          return(tokens$line1[i])
+        } else if (row > length(lines) && tokens$token[i] == "SYMBOL_SUB" && length(stack) > 0) {
+          name <- tail(stack, 1)
+          if (!nzchar(name) || !exists(name, mode = "function")) next
+          args <- names(formals(get(name, mode = "function")))
+          parent <- if (length(stack) > 1) stack[length(stack) - 1] else ""
+          parent_args <- if (nzchar(parent) && exists(parent, mode = "function")) {
+            names(formals(get(parent, mode = "function")))} else character(0)
+          if (!is.null(args) && (!"..." %in% args || text %in% parent_args) &&
+              !text %in% args && i > 1) {
+            return(tokens$line2[i - 1])}}}}
+    before <- which(tokens$line1 < row | (tokens$line1 == row & tokens$col1 <= col))
+    if (length(before) > 0) {
+      i <- tail(before, 1)
+      values <- c("SYMBOL", "SYMBOL_SUB", "STR_CONST", "NUM_CONST", "')'", "']'", "']]'", "'}'")
+      if (i > 1 && tokens$token[i] %in% c("SYMBOL", "STR_CONST", "NUM_CONST") &&
+          tokens$token[i - 1] %in% values) return(tokens$line2[i - 1])}}
+  if (row > length(lines)) {
+    nonblank <- which(nzchar(trimws(lines)))
+    return(if (length(nonblank) > 0) tail(nonblank, 1) else NA_integer_)}
+  row}
+
+.resolve_feedback_location <- function(msg = "", fragment = NULL, calls = sys.calls(),
+    context = .feedback_source()) {
+  unknown <- list(line = NA_integer_, text = fragment)
+  file_position <- regmatches(msg, regexec("(?m)^[ \t]*([^\n]+):([0-9]+):([0-9]+):", msg, perl = TRUE))[[1]]
+  if (length(file_position) < 4) file_position <- regmatches(msg,
+    regexec("\\(([^()\n]+):([0-9]+):([0-9]+)\\)", msg))[[1]]
+  source_row <- NULL
+  if (length(file_position) > 3 && file.exists(file_position[2])) {
+    source_row <- as.integer(file_position[3])
+    context <- list(id = file_position[2], path = file_position[2],
+      contents = readLines(file_position[2], warn = FALSE), selection = list())}
+  if (is.null(context) || length(context$contents) == 0) return(unknown)
+  lines <- context$contents
+  selected <- integer(0)
+  cursor_rows <- integer(0)
+  for (selection in context$selection) {
+    if (!is.null(selection$range$start)) {
+      cursor_rows <- c(cursor_rows, selection$range$start[1])}
+    if (!is.null(selection$text) && nzchar(selection$text)) {
+      first <- selection$range$start[1]
+      last <- selection$range$end[1] - as.integer(selection$range$end[2] == 1)
+      if (last >= first) selected <- c(selected, seq.int(first, last))}}
+
+  is_parse <- grepl("unexpected |incomplete expression|incomplete final line|_R_USE_PIPEBIND_|pipe operator|RHS call of a pipe", msg)
+  anchors <- character(0)
+  if (is_parse) {
+    numbered <- regmatches(msg, gregexpr("(?m)^[0-9]+: [^\n]*", msg, perl = TRUE))[[1]]
+    if (length(numbered) > 0) anchors <- sub("^[0-9]+: ", "", numbered)
+    if (grepl(" in:\n", msg, fixed = TRUE)) {
+      anchors <- strsplit(sub("(?s)^.*? in:\n", "", msg, perl = TRUE), "\n", fixed = TRUE)[[1]]
+      if (length(anchors) > 0) {
+        anchors[1] <- sub('^"', "", anchors[1])
+        anchors[length(anchors)] <- sub('"$', "", anchors[length(anchors)])}}
+    if (length(anchors) == 0 && grepl(' in "', msg, fixed = TRUE)) {
+      anchors <- sub('(?s)^.*? in "(.*)"\n?$', "\\1", msg, perl = TRUE)}
+    anchors <- trimws(anchors[nzchar(trimws(anchors))])}
+  if (is.null(fragment)) {
+    detail <- regmatches(msg, regexpr("There's a problem in this line:\n[^\n]+", msg))
+    if (length(detail) > 0) fragment <- sub("There's a problem in this line:\n", "", detail, fixed = TRUE)}
+  unknown$text <- if (!is.null(fragment)) fragment else if (length(anchors) > 0) paste(anchors, collapse = "\n") else NULL
+
+  diagnostic <- regmatches(msg, regexec("(?s)^Error in (.*?)[[:space:]]+:[[:space:]]*", msg, perl = TRUE))[[1]]
+  if (length(diagnostic) > 1) {
+    diagnostic_call <- tryCatch(parse(text = diagnostic[2])[[1]], error = function(e) NULL)
+    if (is.call(diagnostic_call)) calls <- c(list(diagnostic_call), calls)}
+  missing_function <- .extract_function_name(msg)
+  missing_function_call <- length(missing_function) == 1 && any(vapply(Filter(is.call, calls),
+    function(call) .call_name(call) == missing_function, logical(1)))
+  incorrect_value <- regmatches(msg, regexec('Incorrect value for argument "([^"]+)"', msg))[[1]]
+  validation_arguments <- if (length(incorrect_value) > 1) incorrect_value[2] else character(0)
+  for (call in Filter(is.call, calls)) {
+    if (.call_name(call) %in% c("match.arg", "base::match.arg") && length(call) >= 2 && is.symbol(call[[2]])) {
+      validation_arguments <- c(validation_arguments, as.character(call[[2]]))}}
+
+  nonblank <- which(nzchar(trimws(lines)))
+  blocks <- unname(split(nonblank, cumsum(!nzchar(trimws(lines)))[nonblank]))
+  if (length(selected) > 0) blocks <- c(list(selected), blocks)
+  locations <- integer(0)
+  data_locations <- integer(0)
+  missing_data <- .extract_object_not_found_names(msg)
+  missing_data <- missing_data[.is_probably_data_name(missing_data)]
+  assignment_locations <- integer(0)
+  pipe_locations <- integer(0)
+  parenthesis_locations <- integer(0)
+  missing_parenthesis <- regmatches(msg, regexec("as in .?([[:alnum:]_.]+)\\(\\)", msg))[[1]]
+  if (!is.null(fragment) && nzchar(fragment)) {
+    locations <- which(vapply(lines, function(line) grepl(fragment, line, fixed = TRUE), logical(1)))}
+  call_keys <- unique(vapply(Filter(is.call, calls),
+    function(call) paste(deparse(call, width.cutoff = 500), collapse = "\n"), character(1)))
+  if (length(locations) == 0) {
+    for (rows in blocks) {
+      code <- lines[rows]
+      parsed <- .feedback_parse(code)
+      if (length(missing_parenthesis) > 1 && !is.null(parsed$data)) {
+        bare_function <- parsed$data[parsed$data$terminal & parsed$data$token == "SYMBOL" &
+          parsed$data$text == missing_parenthesis[2], ]
+        for (row in unique(bare_function$line1)) {
+          pattern <- paste0("^[[:space:]]*[[:alnum:]_.]+[[:space:]]*\\+[[:space:]]*",
+            missing_parenthesis[2], "[[:space:]]*(#.*)?$")
+          if (grepl(pattern, code[row])) parenthesis_locations <- c(parenthesis_locations, rows[row])}}
+      if (is_parse) {
+        related <- length(anchors) > 0 && all(vapply(anchors, function(anchor) {
+          any(vapply(code, function(line) grepl(anchor, trimws(line), fixed = TRUE), logical(1)))}, logical(1)))
+        if (!is.null(source_row) && source_row %in% rows) related <- TRUE
+        if (length(anchors) == 0 && length(selected) > 0 && identical(rows, selected)) related <- TRUE
+        if (!related || is.null(parsed$error)) next
+        row <- .feedback_parse_line(parsed, code)
+        if (!is.na(row) && row <= length(rows)) {
+          locations <- c(locations, rows[row])
+          if (identical(rows, selected)) break}
+      } else if (!is.null(parsed$data) && (length(call_keys) > 0 || length(missing_function) > 0 ||
+          grepl("non-numeric argument to binary operator|object '[^']+' not found|Code arguments are missing", msg))) {
+        tokens <- parsed$data[parsed$data$terminal & parsed$data$token != "COMMENT", ]
+        tokens <- tokens[order(tokens$line1, tokens$col1), ]
+        next_token <- c(tail(tokens$token, -1), "")
+        references <- tokens$token == "SYMBOL" & tokens$text %in% missing_data &
+          !next_token %in% c("LEFT_ASSIGN", "EQ_ASSIGN")
+        data_locations <- c(data_locations, rows[tokens$line1[references]])
+        refs <- attr(parsed$expressions, "srcref")
+        if (length(refs) > 1) for (j in seq.int(2, length(refs))) {
+          previous <- parsed$expressions[[j - 1]]
+          current <- parsed$expressions[[j]]
+          if (!is.call(previous) || .call_name(previous) != "<-" ||
+              !is.symbol(previous[[2]]) || !is.call(current)) next
+          end <- refs[[j - 1]][3]
+          start <- refs[[j]][1]
+          if (start != end + 1L) next
+          stage <- regmatches(trimws(code[start]), regexpr("^[[:alnum:]_.]+(?=\\()", trimws(code[start]), perl = TRUE))
+          current_key <- paste(deparse(current, width.cutoff = 500), collapse = "\n")
+          submitted <- current_key %in% call_keys || all(rows[start:refs[[j]][3]] %in% selected)
+          if (identical(stage, "select") && identical(previous[[3]], as.name("gss"))) {
+            first_arg <- regmatches(code[start], regexec("select\\([[:space:]]*([[:alnum:]_.]+)", code[start]))[[1]]
+            missing <- .extract_object_not_found_names(msg)
+            if (length(first_arg) > 1 && first_arg[2] != "gss" && first_arg[2] %in% missing && submitted) {
+              pipe_locations <- c(pipe_locations, rows[end])}
+          } else if (identical(stage, "plot_stackfrq") && .call_name(previous[[3]]) == "select" &&
+              any(parsed$data$token == "PIPE" & parsed$data$line1 >= refs[[j - 1]][1] & parsed$data$line1 <= end) &&
+              grepl("Code arguments are missing", msg, fixed = TRUE) && submitted) {
+            pipe_locations <- c(pipe_locations, rows[end])}}
+        expressions <- parsed$data[parsed$data$token == "expr" & nzchar(parsed$data$text), ]
+        for (i in seq_len(nrow(expressions))) {
+          expression <- tryCatch(parse(text = expressions$text[i])[[1]], error = function(e) NULL)
+          if (!is.call(expression)) next
+          key <- paste(deparse(expression, width.cutoff = 500), collapse = "\n")
+          if (grepl("non-numeric argument to binary operator", msg, fixed = TRUE) &&
+              .call_name(expression) == "-" && length(expression) == 3 &&
+              is.call(expression[[2]]) && .call_name(expression[[2]]) == "$" &&
+              identical(expression[[2]][[2]], as.name("gss")) &&
+              is.symbol(expression[[2]][[3]]) && .call_name(expression[[3]]) == "rec") {
+            lhs <- paste(deparse(expression[[2]]), collapse = " ")
+            first_line <- gsub("[[:space:]]", "", code[expressions$line1[i]])
+            prefix <- paste0("Error in ", lhs, " - rec(")
+            if (identical(first_line, paste0(lhs, "-")) &&
+                (key %in% call_keys || startsWith(gsub("[[:space:]]+", " ", msg), prefix))) {
+              assignment_locations <- c(assignment_locations, rows[expressions$line1[i]])}}
+          if (key %in% call_keys || (length(missing_function) == 1 && !missing_function_call &&
+              .call_name(expression) == missing_function)) {
+            row <- expressions$line1[i]
+            names <- unique(c(.extract_object_not_found_names(msg),
+              gsub("^`|`$", "", .extract_variable_names(msg)), missing_function, validation_arguments))
+            if (grepl("unused arguments? \\(", msg)) {
+              arguments <- sub("(?s)^.*unused arguments? \\((.*)\\)[[:space:]]*$", "\\1", msg, perl = TRUE)
+              argument_call <- tryCatch(parse(text = paste0("list(", arguments, ")"))[[1]], error = function(e) NULL)
+              if (is.call(argument_call)) names <- unique(c(names, names(as.list(argument_call)[-1])))}
+            empty_argument <- regmatches(msg, regexec("argument ([0-9]+) is empty", msg))[[1]]
+            if (length(empty_argument) > 1) {
+              position <- as.integer(empty_argument[2])
+              argument_names <- base::names(as.list(expression)[-1])
+              if (!is.na(position) && position <= length(argument_names) &&
+                  nzchar(argument_names[position])) {
+                names <- unique(c(names, argument_names[position]))}}
+            if (grepl("argument is missing|missing argument", msg)) {
+              expression_arguments <- as.list(expression)[-1]
+              argument_names <- base::names(expression_arguments)
+              missing_positions <- which(vapply(expression_arguments,
+                function(argument) identical(argument, quote(expr = )), logical(1)))
+              missing_names <- argument_names[missing_positions]
+              names <- unique(c(names, missing_names[nzchar(missing_names)]))}
+            tokens <- parsed$data[parsed$data$terminal &
+              parsed$data$line1 >= expressions$line1[i] & parsed$data$line2 <= expressions$line2[i], ]
+            referenced <- unique(tokens$line1[tokens$text %in% c(names, paste0('"', names, '"'), paste0("`", names, "`"))])
+            if (length(referenced) == 0 && .call_name(expression) %in% c("plot_frq", "sjPlot::plot_frq") &&
+                grepl("no applicable method for 'select' applied to an object", msg, fixed = TRUE) &&
+                requireNamespace("sjPlot", quietly = TRUE)) {
+              formal_names <- setdiff(names(formals(sjPlot::plot_frq)), "...")
+              supplied_names <- names(as.list(expression)[-1])
+              unknown_names <- supplied_names[nzchar(supplied_names) & is.na(pmatch(supplied_names, formal_names))]
+              typo_names <- unknown_names[vapply(unknown_names, function(name) {
+                distances <- adist(name, formal_names)
+                min(distances) <= 2 && sum(distances == min(distances)) == 1}, logical(1))]
+              if (length(typo_names) == 1) referenced <- unique(tokens$line1[
+                tokens$token == "SYMBOL_SUB" & tokens$text == typo_names])}
+            if (length(referenced) == 1) row <- referenced
+            locations <- c(locations, rows[row])}}}}}
+  if (length(locations) == 0 && length(data_locations) > 0) locations <- data_locations
+  if (length(assignment_locations) > 0) locations <- assignment_locations
+  if (length(pipe_locations) > 0) locations <- pipe_locations
+  if (length(parenthesis_locations) > 0) locations <- parenthesis_locations
+  locations <- unique(locations)
+  if (length(selected) > 0 && any(locations %in% selected)) locations <- locations[locations %in% selected]
+  if (length(locations) > 1 && length(selected) == 0 && length(cursor_rows) > 0) {
+    distances <- vapply(locations, function(row) min(abs(row - cursor_rows)), numeric(1))
+    nearest <- locations[distances == min(distances)]
+    if (length(nearest) == 1) locations <- nearest}
+  if (length(locations) != 1) return(unknown)
+  row <- locations[1]
+  block <- Filter(function(rows) row %in% rows, blocks)
+  block <- if (length(block) > 0) block[[1]] else row
+  list(line = row, text = lines[row], block = range(block),
+    incorrect_assignment = length(assignment_locations) > 0,
+    incorrect_pipe = length(pipe_locations) > 0,
+    incorrect_parenthesis = length(parenthesis_locations) > 0,
+    document = paste(context$id, context$path, paste(lines, collapse = "\n"), sep = "\n"))}
+
+.feedback_location_text <- function(location) {
+  if (is.null(location) || is.na(location$line)) {
+    return(paste0("Line number unavailable", if (!is.null(location$text)) paste0(":\n", location$text) else "."))}
+  paste0("There's a problem on line ", location$line, ":\n", location$text)}
+
+.feedback_code_box <- function(text, color = "#cc0000") {
+  paste0("<pre style='background:#f5f5f5;padding:10px;color:", color, ";",
+    "white-space:pre-wrap;overflow-wrap:anywhere'>", text, "</pre>")}
+
+.problem_panel <- function(title, location, explanation = "", guidance = "") {
+  paste0("<hr><h3 style='color:#cc0000'>&#9888; ", title, "</h3>",
+    if (nzchar(explanation)) paste0("<p style='color:#000000'><b>", explanation, "</b></p>") else "",
+    .problem_location_html(location), guidance)}
+
+.problem_reasons <- function(...) {
+  paste0("<p>This error happens for one of these reasons:</p><ol>",
+    paste0("<li>", list(...), "</li>", collapse = ""), "</ol>")}
+
+.name_problem_text <- function(names, singular, plural) {
+  codes <- paste0("<code>", .feedback_escape(names), "</code>")
+  paste0(if (length(names) == 1) singular else plural, paste(codes, collapse = ", "), ".")}
+
+.problem_location_html <- function(location) {
+  notice <- if (is.null(location) || is.na(location$line)) {
+    "Line number unavailable"
+  } else paste0(
+    "There's a problem on ",
+    "<span style='display:inline-block;background:#fff0a8;color:#8a1c00;",
+    "padding:2px 7px;border-radius:4px'>line ", location$line, "</span>")
+  code <- if (!is.null(location$text) && nzchar(location$text))
+    .feedback_code_box(.feedback_escape(location$text)) else ""
+  paste0(
+    "<p style='color:#8a1c00;margin-bottom:8px'><b>", notice,
+    " <span style='font-size:1.15em'>&#10132;</span></b></p>",
+    code)}
 
 .clean_msg <- function(msg) {
   msg <- gsub("\033\\[[0-9;]*m", "", msg)
@@ -439,9 +825,15 @@ rec <- function(x, rec, var.label = NULL, ...) {
 .show_viewer <- function(html) {
   tryCatch({
     if (!rstudioapi::isAvailable()) stop("RStudio Viewer is unavailable.", call. = FALSE)
+    font_size <- tryCatch(rstudioapi::readRStudioPreference("font_size_points", 10),
+      error = function(e) 10)
+    if (!is.numeric(font_size) || length(font_size) != 1L || !is.finite(font_size) || font_size <= 0) font_size <- 10
     tmp <- tempfile(fileext = ".html")
     writeLines(paste0(
-      "<html><body style='font-family:sans-serif;padding:20px'>",
+      "<html><head><style>",
+      "body{font-family:sans-serif;font-size:", font_size, "pt;padding:20px}",
+      "table,pre,code{font-size:inherit}h3{font-size:1.15em;font-weight:bold}",
+      "</style></head><body>",
       html,
       "</body></html>"), tmp)
     rstudioapi::viewer(tmp)
@@ -471,12 +863,19 @@ rec <- function(x, rec, var.label = NULL, ...) {
 .variable_created_success_callback <- function(expr, value, ok, visible) {
   on.exit({
     .current_warnings <<- character(0)
+    .current_warning_location <<- NULL
+    .last_parse_feedback <<- NULL
     .viewer_error_shown <<- FALSE}, add = TRUE)
   tryCatch({
     if (!ok || !is.call(expr) || length(expr) < 3) return(TRUE)
-    if (.call_name(expr) %in% c("<-", "=") && .is_variable_success_call(expr[[3]]) &&
+    if (.call_name(expr) %in% c("<-", "=") &&
         !.viewer_error_shown && length(.current_warnings) == 0) {
-      .show_success(value, attr(value, "label"), !.is_structure_rowmeans_call(expr[[3]]), .get_lhs_variable_name(expr))}
+      if (is.symbol(expr[[2]]) && is.data.frame(value)) {
+        .show_viewer(paste0(
+          "<h3 style='color:#2a7a2a'>&#10003; Data created successfully: ",
+          .feedback_escape(as.character(expr[[2]])), "</h3>"))
+      } else if (.is_variable_success_call(expr[[3]])) {
+        .show_success(value, attr(value, "label"), !.is_structure_rowmeans_call(expr[[3]]), .get_lhs_variable_name(expr))}}
   }, error = function(e) {
     message("Variable feedback failed: ", conditionMessage(e))
     tryCatch(.show_error(e), error = function(e) message(conditionMessage(e)))})
@@ -498,12 +897,16 @@ rec <- function(x, rec, var.label = NULL, ...) {
   .feedback_depth <<- .feedback_depth + 1L
   on.exit(.feedback_depth <<- .feedback_depth - 1L, add = TRUE)
   .current_warnings <<- character(0)
+  .current_warning_location <<- NULL
+  .last_parse_feedback <<- NULL
   .viewer_error_shown <<- FALSE
 
   result <- tryCatch(
     withCallingHandlers(
       expr,
       warning = function(w) {
+        if (is.null(.current_warning_location)) .current_warning_location <<-
+          .resolve_feedback_location(conditionMessage(w), calls = c(list(conditionCall(w)), sys.calls()))
         .current_warnings <<- c(.current_warnings, conditionMessage(w))}),
     error = function(e) {
       .show_error(e)
@@ -545,7 +948,7 @@ rec <- function(x, rec, var.label = NULL, ...) {
   x <- gsub("`", "", x)
   x %in% c("gs", "gss", "gsss", "gss1", "gss2") | adist(x, "gss") <= 2}
 
-.extract_variable_names <- function(source_msg) {
+.extract_variable_names <- function(source_msg, formula_variables = FALSE) {
   variable_names <- character(0)
 
   unknown_column_lines <- unlist(regmatches(
@@ -582,7 +985,7 @@ rec <- function(x, rec, var.label = NULL, ...) {
     variable_names <- c(variable_names, these_vars)}
 
   object_vars <- .extract_object_not_found_names(source_msg)
-  object_vars <- object_vars[!.is_probably_data_name(object_vars)]
+  if (!formula_variables) object_vars <- object_vars[!.is_probably_data_name(object_vars)]
   object_vars <- object_vars[!object_vars %in% c("NA", "NULL", "TRUE", "FALSE")]
   object_vars <- paste0("`", object_vars, "`")
 
@@ -598,7 +1001,7 @@ rec <- function(x, rec, var.label = NULL, ...) {
   spaced_names <- variable_names[raw_names != trimws(raw_names)]
   spaced_names}
 
-.data_name_warning <- function(msg) {
+.data_name_warning <- function(msg, location = NULL) {
   recent_warnings <- .clean_msg(.get_recent_warnings())
   combined_msg <- paste(msg, recent_warnings, sep = "\n")
 
@@ -609,61 +1012,53 @@ rec <- function(x, rec, var.label = NULL, ...) {
 
   data_names <- unique(data_names)
 
-  data_text <- if (length(data_names) == 1) {
-    paste0("There is no dataset loaded with this name: ", data_names, ".")
-  } else {
-    paste0(
-      "There are no datasets loaded with these names: ",
-      paste(data_names, collapse = ", "),
-      ".")}
+  .problem_panel("Data name problem", location,
+    .name_problem_text(data_names, "There is no dataset loaded with this name: ",
+      "There are no datasets loaded with these names: "),
+    paste0("<p>Check <b>Environment &gt; Data</b>.</p>",
+      .problem_reasons("The dataset name was typed incorrectly.",
+        paste0("The dataset was not loaded yet. Go to the top of this R Script file, highlight and run the ",
+          "&ldquo;Refresh data and packages&rdquo; code."))))}
 
-  paste0(
-    "<hr>",
-    "<h3 style='color:#cc0000'>&#9888; Data name problem</h3>",
-    "<p><b>Problem found:</b></p>",
-    "<pre style='background:#f5f5f5;padding:10px;color:#cc0000;",
-    "white-space:pre-wrap;overflow-wrap:anywhere'>",
-    data_text,
-    "</pre>",
-    "<p>Check <b>Environment &gt; Data</b>.</p>",
-    "<p>This error happens for one of these reasons:</p>",
-    "<ol>",
-    "<li>The dataset name was typed incorrectly.</li>",
-    "<li>The dataset was not loaded yet. Go to the top of this R Script file, highlight and run the ",
-    "&ldquo;Refresh data and packages&rdquo; code.</li>",
-    "</ol>")}
+.extract_model_names <- function(msg, location = NULL, calls = sys.calls()) {
+  object_names <- .extract_object_not_found_names(msg)
+  model_names <- object_names[grepl("^model[0-9]*$", object_names)]
+  if (length(object_names) == 0) return(model_names)
+  if (!is.null(location$text)) {
+    source_calls <- tryCatch(as.list(parse(text = location$text)), error = function(e) list())
+    calls <- c(calls, source_calls)}
+  for (call in Filter(is.call, calls)) {
+    name <- sub("^.*::", "", .call_name(call))
+    if (!name %in% c("check_model", "check_heteroscedasticity", "check_collinearity",
+        "parameters", "model_parameters", "tab_model")) next
+    args <- as.list(call)[-1]
+    if (length(args) == 0) next
+    arg_names <- names(args)
+    if (is.null(arg_names)) arg_names <- rep("", length(args))
+    model_args <- which(arg_names == "" | arg_names %in% c("model", "x", "object"))
+    if (name != "tab_model") model_args <- head(model_args, 1)
+    for (i in model_args) {
+      if (is.symbol(args[[i]])) model_names <- c(model_names,
+        intersect(object_names, as.character(args[[i]])))}}
+  unique(model_names)}
 
-.model_name_warning <- function(msg) {
+.model_name_warning <- function(msg, location = NULL, model_names = NULL) {
   recent_warnings <- .clean_msg(.get_recent_warnings())
   combined_msg <- paste(msg, recent_warnings, sep = "\n")
 
-  object_names <- .extract_object_not_found_names(combined_msg)
-  model_names <- object_names[grepl("^model[0-9]*$", object_names)]
+  if (is.null(model_names)) model_names <- .extract_model_names(combined_msg, location)
 
   if (length(model_names) == 0) return("")
 
   model_names <- unique(model_names)
 
-  model_text <- if (length(model_names) == 1) {
-    paste0("This model object does not exist: ", model_names, ".")
-  } else {
-    paste0("These model objects do not exist: ", paste(model_names, collapse = ", "), ".")}
+  .problem_panel("Model name problem", location,
+    .name_problem_text(model_names, "This model does not exist: ", "These models do not exist: "),
+    .problem_reasons(
+      "The model name was typed incorrectly. Compare it with the name used when creating the model.",
+      "The code that creates the model was not highlighted and run."))}
 
-  paste0(
-    "<hr>",
-    "<h3 style='color:#cc0000'>&#9888; Model name problem</h3>",
-    "<p><b>Problem found:</b></p>",
-    "<pre style='background:#f5f5f5;padding:10px;color:#cc0000;",
-    "white-space:pre-wrap;overflow-wrap:anywhere'>",
-    model_text,
-    "</pre>",
-    "<p>This error happens when the model name used later does not match the model name created earlier.</p>",
-    "<ol>",
-    "<li>Go back to the model code and compare the model name.</li>",
-    "<li>For example, if you created <code>model1</code>, then use <code>model1</code> in the next line</li>",
-    "</ol>")}
-
-.variable_name_warning <- function(msg) {
+.variable_name_warning <- function(msg, formula_variables = FALSE, location = NULL, model_names = character(0)) {
   recent_warnings <- .clean_msg(.get_recent_warnings())
 
   variable_problem_pattern <- paste0(
@@ -680,82 +1075,38 @@ rec <- function(x, rec, var.label = NULL, ...) {
   if (!error_has_variable_problem && !warning_has_variable_problem) return("")
 
   source_msg <- if (error_has_variable_problem) msg else recent_warnings
-  variable_names <- .extract_variable_names(source_msg)
-  variable_names <- variable_names[!gsub("`", "", variable_names) %in% c("gs", "gss", "gsss")]
+  variable_names <- .extract_variable_names(source_msg, formula_variables)
+  if (!formula_variables) variable_names <- variable_names[!gsub("`", "", variable_names) %in% c("gs", "gss", "gsss")]
   variable_names <- variable_names[!grepl("^model[0-9]*$", gsub("`", "", variable_names))]
+  variable_names <- variable_names[!gsub("`", "", variable_names) %in% model_names]
 
   if (length(variable_names) == 0) return("")
 
   raw_variable_names <- gsub("`", "", variable_names)
 
-  variable_text <- if (length(raw_variable_names) == 1) {
-    paste0("This variable does not exist: ", raw_variable_names, ".")
-  } else {
-    paste0("These variables do not exist: ", paste(raw_variable_names, collapse = ", "), ".")}
+  .problem_panel("Variable name problem", location,
+    .name_problem_text(raw_variable_names, "This variable does not exist: ", "These variables do not exist: "),
+    .problem_reasons(
+      paste0("There is a typo in the variable name. Do not type variable names manually. ",
+        "Copy and paste the variable name."),
+      paste0("If this is a recoded, computed, or dummy variable:",
+        "<ol style='margin-top:6px'><li>The prior codes were not highlighted and run, ",
+        "so this variable doesn't exist in the dataset yet.",
+        "<li>Preparing the code in the R Script file doesn't mean it's in the dataset; it must be highighted and run first.</li>",
+        "<li>The further analyses that use this variable will not work until this code is fixed.</li></ol>")))}
 
-  paste0(
-    "<hr>",
-    "<h3 style='color:#cc0000'>&#9888; Variable name problem</h3>",
-    "<p><b>Problem found:</b></p>",
-    "<pre style='background:#f5f5f5;padding:10px;color:#cc0000;",
-    "white-space:pre-wrap;overflow-wrap:anywhere'>",
-    variable_text,
-    "</pre>",
-    "<p>This error happens for one of these reasons:</p>",
-    "<ol>",
-    "<li>There is a typo in the variable name. Do not type variable names manually. ",
-    "Copy and paste the variable name.</li>",
-    "<li>If this is a recoded, computed, or dummy variable:",
-    "<ol style='margin-top:6px'>",
-    "<li>The prior codes were not highlighted and run, ",
-    "so this variable doesn't exist in the dataset yet.",
-    "<li>Preparing the code in the R Script file doesn't mean it's in the dataset; it must be highighted and run first.</li>",
-    "<li>The further analyses that use this variable will not work until this code is fixed.</li>",
-    "</ol>",
-    "</li>",
-    "</ol>")}
-
-.package_problem_warning <- function(msg) {
+.incorrect_code_warning <- function(msg, location = NULL) {
   recent_warnings <- .clean_msg(.get_recent_warnings())
   combined_msg <- paste(msg, recent_warnings, sep = "\n")
-
-  has_package_problem <- grepl("could not find function", combined_msg)
-  if (!has_package_problem) return("")
-
-  function_name <- .extract_function_name(combined_msg)
-
-  problem_text <- if (length(function_name) > 0 && nzchar(function_name)) {
-    paste0("Function `", function_name, "` does not exist.")
-  } else {
-    "The function does not exist."}
-
-  paste0(
-    "<hr>",
-    "<h3 style='color:#cc0000'>&#9888; Package problem</h3>",
-    "<p><b>Problem found:</b></p>",
-    "<pre style='background:#f5f5f5;padding:10px;color:#cc0000;",
-    "white-space:pre-wrap;overflow-wrap:anywhere'>",
-    problem_text,
-    "</pre>",
-    "<p>This error happens for one of these reasons:</p>",
-    "<ol>",
-    "<li>There is a typo in the function name. Do not type the code manually. ",
-    "Copy and paste the model code.</li>",
-    "<li>The package that contains this function was not loaded. ",
-    "Go to the top of this R Script file, highlight and run the ",
-    "&ldquo;Refresh data and packages&rdquo; code.</li>",
-    "</ol>")}
-
-.incorrect_code_warning <- function(msg) {
-  recent_warnings <- .clean_msg(.get_recent_warnings())
-  combined_msg <- paste(msg, recent_warnings, sep = "\n")
-  recode_problem <- regmatches(combined_msg,
-    regexpr("There's a problem in this line:\n[^\n]+", combined_msg))
 
 has_incorrect_code_problem <- grepl(
   paste0(
+    "could not find function|",
+    "grouping factor must have exactly 2 levels|",
+    'Incorrect value for argument "|',
     "There's a problem in this line:|",
     "Syntax error in argument|",
+    "'arg' should be one of|",
     "Code arguments are missing|",
     "argument is missing|",
     "argument [0-9]+ is empty|",
@@ -772,35 +1123,41 @@ has_incorrect_code_problem <- grepl(
     "unexpected '\\}'|",
     "unexpected end of input|",
     "unexpected EOF|",
+    "unexpected INCOMPLETE_STRING|",
+    "unexpected '\\]'|",
+    "_R_USE_PIPEBIND_|",
+    "pipe operator|RHS call of a pipe|",
     "incomplete final line|",
     "incomplete expression|",
     "no applicable method for 'select' applied to an object"),
   combined_msg)
 
-  if (!has_incorrect_code_problem) return("")
+  if (!has_incorrect_code_problem && !isTRUE(location$incorrect_assignment) &&
+      !isTRUE(location$incorrect_pipe) && !isTRUE(location$incorrect_parenthesis)) return("")
+  if (is.null(location)) location <- .resolve_feedback_location(combined_msg)
+  function_name <- .extract_function_name(combined_msg)
 
-  paste0(
-    "<hr>",
-    "<h3 style='color:#cc0000'>&#9888; Incorrect code problem</h3>",
-    "<p><b>Problem found:</b></p>",
-    "<pre style='background:#f5f5f5;padding:10px;color:#cc0000;",
-    "white-space:pre-wrap;overflow-wrap:anywhere'>",
-    if (length(recode_problem) > 0) recode_problem else "The code is incomplete. Code arguments are missing.",
-    "</pre>",
-    "<p>This error happens for one of these reasons:</p>",
-    "<ol>",
-    "<li>Something was accidentally deleted from or added to the code.</li>",
-    "<li>A comma, quotation mark, parenthesis, semicolon, bracket, or a value is missing.</li>",
-    "</ol>",
-    "<p>Go back to the model code and compare this line.</p>")}
+  explanation <- if (grepl("grouping factor must have exactly 2 levels", combined_msg, fixed = TRUE)) {
+    "The factor variable must be binary (have exactly two levels)."
+  } else if (length(function_name) > 0 && nzchar(function_name)) {
+    paste0("Function <code>", .feedback_escape(function_name), "</code> does not exist.")
+  } else if (grepl("could not find function", combined_msg, fixed = TRUE)) {
+    "The function does not exist."
+  } else if (is.na(location$line)) "The code is incomplete. Code arguments are missing." else ""
+  .problem_panel("Incorrect code problem", location, explanation,
+    paste0(.problem_reasons(
+      "Something was accidentally deleted from or added to the code.",
+      "A comma, quotation mark, parenthesis, semicolon, colon, bracket, function name, argument name, value, or pipe is missing or incorrect."),
+      "<p>Go back to the model code and compare this line.</p>"))}
 
-.problem_sections <- function(msg) {
-  paste0(
-    .data_name_warning(msg),
-    .model_name_warning(msg),
-    .variable_name_warning(msg),
-    .package_problem_warning(msg),
-    .incorrect_code_warning(msg))}
+.problem_sections <- function(msg, location = NULL, formula_variables = FALSE) {
+  if (isTRUE(location$incorrect_pipe) || isTRUE(location$incorrect_parenthesis)) return(.incorrect_code_warning(msg, location))
+  model_names <- .extract_model_names(paste(msg, .clean_msg(.get_recent_warnings()), sep = "\n"), location)
+  sections <- paste0(
+    if (!formula_variables && length(model_names) == 0) .data_name_warning(msg, location) else "",
+    .model_name_warning(msg, location, model_names),
+    .variable_name_warning(msg, formula_variables, location, model_names))
+  paste0(sections, .incorrect_code_warning(msg, location))}
 
 .error_checklist <- paste0(
   "<h3 style='color:#b8860b'>&#9888; There is a problem with the code!</h3>",
@@ -813,43 +1170,44 @@ has_incorrect_code_problem <- grepl(
 
 .show_error <- function(e) {
   .viewer_error_shown <<- TRUE
-  msg <- .clean_msg(conditionMessage(e))
+  raw_msg <- conditionMessage(e)
+  location <- .resolve_feedback_location(raw_msg, calls = c(list(conditionCall(e)), sys.calls()))
+  if (grepl("unexpected |incomplete expression", raw_msg) && !is.na(location$line)) {
+    if (!is.null(.last_parse_feedback) && identical(location$document, .last_parse_feedback$document) &&
+        identical(location$block, .last_parse_feedback$block)) return(invisible())
+    .last_parse_feedback <<- location}
+  msg <- .clean_msg(raw_msg)
   recent_warnings <- .clean_msg(.get_recent_warnings())
-  sections <- .problem_sections(msg)
+  formula_variables <- identical(conditionCall(e), quote(eval(predvars, data, env))) ||
+    grepl("^Error in eval\\(predvars,\\s*data,\\s*env\\)", raw_msg)
+  sections <- .problem_sections(msg, location, formula_variables)
 
   .show_viewer(paste0(
     .error_checklist,
     sections,
     if (!nzchar(sections)) paste0(
       "<hr><p><b>Error message:</b></p>",
-      "<pre style='background:#f5f5f5;padding:10px;color:#cc0000;",
-      "white-space:pre-wrap;overflow-wrap:anywhere'>",
-      msg,
-      "</pre>"
+      .feedback_code_box(paste0(msg, "\n\n", .feedback_escape(.feedback_location_text(location))))
     ) else "",
     if (nzchar(recent_warnings) && !nzchar(sections)) paste0(
       "<hr><p><b>Warning message:</b></p>",
-      "<pre style='background:#f5f5f5;padding:10px;color:#cc0000;",
-      "white-space:pre-wrap;overflow-wrap:anywhere'>",
-      recent_warnings,
-      "</pre>"
+      .feedback_code_box(recent_warnings)
     ) else ""))}
 
 .show_warning <- function() {
   recent_warnings <- .clean_msg(.get_recent_warnings())
   if (!nzchar(recent_warnings)) return(invisible())
 
-  sections <- .problem_sections("")
+  location <- .current_warning_location
+  if (is.null(location)) location <- .resolve_feedback_location(.get_recent_warnings())
+  sections <- .problem_sections("", location)
 
   .show_viewer(paste0(
     .error_checklist,
     sections,
     if (!nzchar(sections)) paste0(
       "<hr><p><b>Warning message:</b></p>",
-      "<pre style='background:#f5f5f5;padding:10px;color:#cc0000;",
-      "white-space:pre-wrap;overflow-wrap:anywhere'>",
-      recent_warnings,
-      "</pre>"
+      .feedback_code_box(paste0(recent_warnings, "\n\n", .feedback_escape(.feedback_location_text(location))))
     ) else ""))}
 
 .show_success <- function(result, label, show_counts = TRUE, variable_name = NULL) {
@@ -868,25 +1226,27 @@ counts <- tryCatch({
   tbl <- table(display_result, useNA = "ifany")
   value_labels <- attr(result, "labels")
   value_names <- names(tbl)
+  value_names[is.na(value_names)] <- "NA"
+  names(tbl) <- value_names
+  label_lookup <- character(0)
 
   if (!is.null(value_labels)) {
     label_lookup <- setNames(names(value_labels), as.character(unname(value_labels)))
     label_names <- names(label_lookup)
-    value_label_text <- base::ifelse(value_names %in% label_names, label_lookup[value_names], base::ifelse(value_names == "NA", "Missing", ""))
     missing_label_values <- label_names[!label_names %in% value_names]
     if (length(missing_label_values) > 0) {
       missing_tbl <- setNames(rep(0, length(missing_label_values)), missing_label_values)
       tbl <- c(tbl, missing_tbl)
       value_names <- names(tbl)
-      value_label_text <- base::ifelse(value_names %in% label_names, label_lookup[value_names], base::ifelse(value_names == "NA", "Missing", ""))
       label_order <- c(label_names[label_names %in% value_names], setdiff(value_names, label_names))
       tbl <- tbl[label_order]
       value_names <- names(tbl)
-      value_label_text <- base::ifelse(value_names %in% label_names, label_lookup[value_names], base::ifelse(value_names == "NA", "Missing", ""))
     }
-  } else { value_label_text <- base::ifelse(value_names == "NA", "Missing", "") }
+  }
 
 missing_row <- is.na(value_names) | value_names == "" | value_names == "NA"
+value_label_text <- base::ifelse(value_names %in% names(label_lookup), label_lookup[value_names], "")
+value_label_text[missing_row] <- "Missing"
 valid_total <- sum(as.integer(tbl)[!missing_row])
 valid_pct <- rep(NA_real_, length(tbl))
 valid_pct[!missing_row] <- as.integer(tbl)[!missing_row] / valid_total * 100
@@ -899,20 +1259,16 @@ counts_df <- data.frame(Value = value_names, Label = value_label_text, Frequency
 }, error = function(e) "(could not compute counts)")
 
 if (has_inf) {
-  .show_viewer(paste0(
-    .error_checklist,
-    "<hr>",
-    "<h3 style='color:#cc0000'>&#9888; Incorrect code problem</h3>",
-    "<p><b>Problem found:</b></p>",
-    "<pre style='background:#f5f5f5;padding:10px;color:#cc0000;",
-    "white-space:pre-wrap;overflow-wrap:anywhere'>",
-    "The recoded variable contains invalid values (-Inf). ",
-    "</pre>",
+  location <- attr(result, ".recode_problem_location")
+  if (is.null(location)) location <- .resolve_feedback_location(fragment = attr(result, ".recode_problem_line"))
+  .show_viewer(paste0(.error_checklist,
+    .problem_panel("Incorrect code problem", location,
+      "The recoded variable contains invalid values (-Inf).", paste0(
     "<p>This error happens when the recoding rules are not written correctly.</p>",
     "<ol>",
     "<li>Check whether all quotation marks, semicolons, parentheses, and brackets are closed correctly.</li>",
     "<li>This code should be fixed because RStudio still creates the variable, but the variable will incorrectly show <code>-Inf</code> in your analysis.</li>",
-    "</ol>"))
+    "</ol>"))))
   } else {
     variable_row <- if (!is.null(variable_name) && nzchar(variable_name)) paste0(
       "<tr><td style='padding:4px 12px 4px 0'><b>Variable name:</b></td>",
@@ -924,12 +1280,26 @@ if (has_inf) {
       "</pre></td></tr>") else ""
     .show_viewer(paste0(
       "<h3 style='color:#2a7a2a'>&#10003; Variable created successfully</h3>",
-      "<table style='border-collapse:collapse;font-size:14px'>",
+      "<table style='border-collapse:collapse'>",
       variable_row,
       "<tr><td style='padding:4px 12px 4px 0'><b>Variable label:</b></td>",
       "<td>", lbl, "</td></tr>",
       count_row,
-      "</table>"))}}
+      "</table>",
+      "<div style='margin-top:20px;padding:16px;background:#eff6ff;",
+      "border-left:4px solid #2563eb;border-radius:4px'>",
+      "<h3 style='color:#1d4ed8;margin:0 0 12px'>&#8505; Reminder</h3>",
+      "<p>Successfully creating a variable does not guarantee it is correct.</p>",
+      "<ul>",
+      "<li>Make sure the original and new variable names are in their correct places.</li>",
+      "<li>Compare your code with the model code.</li>",
+      "<li>If it is incorrect, highlight and run the &ldquo;Refresh data and packages&rdquo; ",
+      "code at the top of this R Script file. Then fix and rerun your code.",
+      "<ul style='margin-top:6px'>",
+      "<li>Refreshing loads fresh data. If you created other new variables in this session, ",
+      "you will need to run those codes again in order.</li>",
+      "</ul></li>",
+      "</ul></div>"))}}
 
 ## make gss tolerate extra spaces in column names ----
 `[.space_tolerant_data` <- function(x, i, j, ..., drop = FALSE) {
