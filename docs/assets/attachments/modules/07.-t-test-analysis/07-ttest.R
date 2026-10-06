@@ -89,8 +89,8 @@ var.label = "Recoded variable label")
 
 
 gss$educbinary <- rec(gss$educ, rec = 
-"0:14=1 [Low education level]; 
-15:20=2 [High education level]",
+"0 : 14 = 1 [Low education level]; 
+15 : 20 = 2 [High education level]",
 var.label = "Recoded respondents' education in years")
 
 
