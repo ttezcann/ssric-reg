@@ -11,6 +11,11 @@
   max-width: 1440px;
 }
 
+.md-typeset table:not([class]) td,
+.md-typeset table:not([class]) th {
+  line-height: 1.4;
+}
+
 :root:not([data-knotis-styled-section-groups="false"]) .md-sidebar--primary .md-nav--primary > .md-nav__title {
   display: none;
 }
