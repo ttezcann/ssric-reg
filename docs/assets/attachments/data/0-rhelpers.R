@@ -85,7 +85,7 @@ plot_frq <- function(...) {
     sjPlot::plot_frq(...)})}
 
 ## chisquare----
-sjt.xtab <- function(...) {
+sjt.xtab <- function(..., wrap.labels = 50) {
   env <- parent.frame()
   .run_with_viewer_feedback({
     call_args <- as.list(substitute(list(...)))[-1]
@@ -95,7 +95,7 @@ sjt.xtab <- function(...) {
       argument <- call_args[[name]]
       if (is.symbol(argument) && !exists(as.character(argument), envir = env, inherits = TRUE)) {
         stop(paste0('Incorrect value for argument "', name, '".'), call. = FALSE)}}
-    result <- sjPlot::sjt.xtab(...)
+    result <- sjPlot::sjt.xtab(..., wrap.labels = wrap.labels)
     add_stars_to_html <- function(html) {
       if (is.null(html) || !nzchar(html)) return(html)
       pattern <- "p(=|&lt;|<)([0-9]*\\.?[0-9]+)"
