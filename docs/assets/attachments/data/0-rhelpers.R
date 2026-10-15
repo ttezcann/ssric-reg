@@ -1034,7 +1034,7 @@ rec <- function(x, rec, var.label = NULL, ...) {
     .name_problem_text(data_names, "There is no dataset loaded with this name: ",
       "There are no datasets loaded with these names: "),
     paste0("<p>Check <b>Environment &gt; Data</b>.</p>",
-      .problem_reasons("The dataset name was typed incorrectly.",
+      .problem_reasons("The dataset name was typed incorrectly. Do not type; copy-paste.",
         "If you prepare code to create a new dataset, run the dataset creation code first, then run this code.",
         paste0("The dataset was not loaded yet. Go to the top of this R Script file, highlight and run the ",
           "&ldquo;Refresh data and packages&rdquo; code."))))}

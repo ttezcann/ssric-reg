@@ -42,6 +42,7 @@ descr(gss20persystematic$coninc, out = "v", show = "short")
 # WORKING SPACE -----------------------------------------------------------
 ## Assignment -------------------------------------------------------------
 ### 1) --------------------------------------------------------------------
+#### 1.1) Descriptive table code ------------------------------------------
 
 
 
@@ -51,12 +52,14 @@ descr(gss20persystematic$coninc, out = "v", show = "short")
 #### 2.1.1) Data creation code ----------------------------------------------
 
 
+
 #### 2.1.2) Descriptive table code ------------------------------------------
 
 
 
 ### 3) ----------------------------------------------------------------------
 #### 3.1.1) Data creation code ----------------------------------------------
+
 
 
 #### 3.1.2) Descriptive table code ------------------------------------------
@@ -68,6 +71,7 @@ descr(gss20persystematic$coninc, out = "v", show = "short")
 #### 4.1.1) Data creation code ----------------------------------------------
 
 
+
 #### 4.1.2) Descriptive table code ------------------------------------------
 
 
@@ -76,32 +80,44 @@ descr(gss20persystematic$coninc, out = "v", show = "short")
 
 ## Sample assignment --------------------------------------------------------
 ### 1) ----------------------------------------------------------------------
-descr(gss$sei10, out = "v", show = "short")
+#### 1.1) Descriptive table code ------------------------------------------
+descr(gss$variable_here, out = "v", show = "short")
 
+descr(gss$sei10, out = "v", show = "short")
 
 ### 2) ----------------------------------------------------------------------
 # 2.1.1) Data creation code -------------------------------------------------
+new_data_name_here <- head(gss, round(0.40 * nrow(gss)))
+
 gssfirst40per <- head(gss, round(0.40 * nrow(gss)))
 
 # 2.1.2) Descriptive table code ---------------------------------------------
-descr(gssfirst40per$sei10, out = "v", show = "short")
+descr(gssfirst40per$variable_here, out = "v", show = "short")
 
+descr(gssfirst40per$sei10, out = "v", show = "short")
 
 
 ### 3) ----------------------------------------------------------------------
 # 3.1.1) Data creation code -------------------------------------------------
+new_data_name_here <- gss[sample(nrow(gss), round(0.30 * nrow(gss))), ]
+
 gssrandom30per <- gss[sample(nrow(gss), round(0.30 * nrow(gss))), ]
 
 # 3.1.2) Descriptive table code ---------------------------------------------
-descr(gssrandom30per$sei10, out = "v", show = "short")
+descr(gssrandom30per$variable_here, out = "v", show = "short")
 
+descr(gssrandom30per$sei10, out = "v", show = "short")
 
 
 ### 4) ----------------------------------------------------------------------
 # 4.1.1) Data creation code -------------------------------------------------
+new_data_name_here <- gss[seq(4, nrow(gss), 5), ]
+
 gss20persystematic <- gss[seq(4, nrow(gss), 5), ]
 
 # 4.1.2) Descriptive table code ---------------------------------------------
+descr(gss20persystematic$variable_here, out = "v", show = "short")
+
 descr(gss20persystematic$sei10, out = "v", show = "short")
 
 
