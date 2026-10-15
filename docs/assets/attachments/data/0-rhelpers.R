@@ -948,6 +948,25 @@ rec <- function(x, rec, var.label = NULL, ...) {
   x <- gsub("`", "", x)
   x %in% c("gs", "gss", "gsss", "gss1", "gss2") | adist(x, "gss") <= 2}
 
+.extract_data_names <- function(msg, location = NULL, calls = sys.calls()) {
+  object_names <- .extract_object_not_found_names(msg)
+  data_names <- object_names[.is_probably_data_name(object_names)]
+  if (length(object_names) == 0) return(data_names)
+  if (!is.null(location$text)) {
+    source_calls <- tryCatch(as.list(parse(text = location$text)), error = function(e) list())
+    calls <- c(calls, source_calls)}
+  check_call <- function(call) {
+    if (!is.call(call)) return(invisible())
+    if (.call_name(call) %in% c("$", "[", "[[") && length(call) >= 2 && is.symbol(call[[2]])) {
+      data_names <<- c(data_names, intersect(object_names, as.character(call[[2]])))}
+    args <- as.list(call)[-1]
+    for (i in which(names(args) == "data")) {
+      if (is.symbol(args[[i]])) data_names <<- c(data_names, intersect(object_names, as.character(args[[i]])))}
+    for (i in seq_along(args)) {
+      if (!identical(args[[i]], quote(expr = ))) check_call(args[[i]])}}
+  for (call in calls) check_call(call)
+  unique(data_names)}
+
 .extract_variable_names <- function(source_msg, formula_variables = FALSE) {
   variable_names <- character(0)
 
@@ -1001,12 +1020,11 @@ rec <- function(x, rec, var.label = NULL, ...) {
   spaced_names <- variable_names[raw_names != trimws(raw_names)]
   spaced_names}
 
-.data_name_warning <- function(msg, location = NULL) {
+.data_name_warning <- function(msg, location = NULL, data_names = NULL) {
   recent_warnings <- .clean_msg(.get_recent_warnings())
   combined_msg <- paste(msg, recent_warnings, sep = "\n")
 
-  object_names <- .extract_object_not_found_names(combined_msg)
-  data_names <- object_names[.is_probably_data_name(object_names)]
+  if (is.null(data_names)) data_names <- .extract_data_names(combined_msg, location)
 
   if (length(data_names) == 0) return("")
 
@@ -1017,6 +1035,7 @@ rec <- function(x, rec, var.label = NULL, ...) {
       "There are no datasets loaded with these names: "),
     paste0("<p>Check <b>Environment &gt; Data</b>.</p>",
       .problem_reasons("The dataset name was typed incorrectly.",
+        "If you prepare code to create a new dataset, run the dataset creation code first, then run this code.",
         paste0("The dataset was not loaded yet. Go to the top of this R Script file, highlight and run the ",
           "&ldquo;Refresh data and packages&rdquo; code."))))}
 
@@ -1058,7 +1077,7 @@ rec <- function(x, rec, var.label = NULL, ...) {
       "The model name was typed incorrectly. Compare it with the name used when creating the model.",
       "The code that creates the model was not highlighted and run."))}
 
-.variable_name_warning <- function(msg, formula_variables = FALSE, location = NULL, model_names = character(0)) {
+.variable_name_warning <- function(msg, formula_variables = FALSE, location = NULL, model_names = character(0), data_names = character(0)) {
   recent_warnings <- .clean_msg(.get_recent_warnings())
 
   variable_problem_pattern <- paste0(
@@ -1079,6 +1098,7 @@ rec <- function(x, rec, var.label = NULL, ...) {
   if (!formula_variables) variable_names <- variable_names[!gsub("`", "", variable_names) %in% c("gs", "gss", "gsss")]
   variable_names <- variable_names[!grepl("^model[0-9]*$", gsub("`", "", variable_names))]
   variable_names <- variable_names[!gsub("`", "", variable_names) %in% model_names]
+  variable_names <- variable_names[!gsub("`", "", variable_names) %in% data_names]
 
   if (length(variable_names) == 0) return("")
 
@@ -1152,11 +1172,13 @@ has_incorrect_code_problem <- grepl(
 
 .problem_sections <- function(msg, location = NULL, formula_variables = FALSE) {
   if (isTRUE(location$incorrect_pipe) || isTRUE(location$incorrect_parenthesis)) return(.incorrect_code_warning(msg, location))
-  model_names <- .extract_model_names(paste(msg, .clean_msg(.get_recent_warnings()), sep = "\n"), location)
+  combined_msg <- paste(msg, .clean_msg(.get_recent_warnings()), sep = "\n")
+  model_names <- .extract_model_names(combined_msg, location)
+  data_names <- if (!formula_variables && length(model_names) == 0) .extract_data_names(combined_msg, location) else character(0)
   sections <- paste0(
-    if (!formula_variables && length(model_names) == 0) .data_name_warning(msg, location) else "",
+    if (!formula_variables && length(model_names) == 0) .data_name_warning(msg, location, data_names) else "",
     .model_name_warning(msg, location, model_names),
-    .variable_name_warning(msg, formula_variables, location, model_names))
+    .variable_name_warning(msg, formula_variables, location, model_names, data_names))
   paste0(sections, .incorrect_code_warning(msg, location))}
 
 .error_checklist <- paste0(
