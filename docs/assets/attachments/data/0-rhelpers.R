@@ -1034,7 +1034,7 @@ rec <- function(x, rec, var.label = NULL, ...) {
     .name_problem_text(data_names, "There is no dataset loaded with this name: ",
       "There are no datasets loaded with these names: "),
     paste0("<p>Check <b>Environment &gt; Data</b>.</p>",
-      .problem_reasons("The dataset name was typed incorrectly. Do not type; copy-paste.",
+      .problem_reasons("There is a typo in the data name. Do not type the data name manually. Copy and paste the data name.",
         "If you prepare code to create a new dataset, run the dataset creation code first, then run this code.",
         paste0("The dataset was not loaded yet. Go to the top of this R Script file, highlight and run the ",
           "&ldquo;Refresh data and packages&rdquo; code."))))}
@@ -1109,6 +1109,7 @@ rec <- function(x, rec, var.label = NULL, ...) {
     .problem_reasons(
       paste0("There is a typo in the variable name. Do not type variable names manually. ",
         "Copy and paste the variable name."),
+      "You run a model code. Model code will not work; it's for a reference.",
       paste0("If this is a recoded, computed, or dummy variable:",
         "<ol style='margin-top:6px'><li>The prior codes were not highlighted and run, ",
         "so this variable doesn't exist in the dataset yet.",
