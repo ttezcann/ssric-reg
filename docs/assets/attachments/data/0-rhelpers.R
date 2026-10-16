@@ -109,7 +109,7 @@ sjt.xtab <- function(..., wrap.labels = 50) {
           if (is.na(p_val)) return(match)
           if (is_less_than) p_val <- p_val - 1e-10
           stars <- if (p_val < .001) "***" else if (p_val < .01) "**" else if (p_val < .05) "*" else ""
-          display <- if (is_less_than) "p=0.000" else match
+          display <- if (is_less_than || p_val < .001) "p&lt;0.001" else match
           paste0(display, stars) }, character(1))
         regmatches(html, m)[[1]] <- replacements }
       html }
@@ -166,7 +166,7 @@ display <- function(object, ...) {
       if (!is.null(raw_p)) {
         for (p in raw_p) {
           stars <- if (p < .001) "***" else if (p < .01) "**" else if (p < .05) "*" else ""
-          p_fmt <- formatC(p, digits = 3, format = "f")
+          p_fmt <- if (p < .001) "<0.001" else formatC(p, digits = 3, format = "f")
           result$`_data`$p <- paste0(p_fmt, stars) } }
       if ("Sig" %in% names(result$`_data`)) result <- gt::cols_hide(result, columns = "Sig")
       result <- gt::cols_label(result, Parameter = "Outcome variable") }
@@ -208,7 +208,7 @@ tab_corr <- function(...) {
           if (is.na(p_val)) return(match)
           if (is_less_than) p_val <- p_val - 1e-10
           stars <- if (p_val < .001) "***" else if (p_val < .01) "**" else if (p_val < .05) "*" else ""
-          if (is_less_than) paste0("p = 0.000", stars) else paste0("p = 0", sub("^\\(", "", sub("\\)$", "", match)), stars) }, character(1))
+          if (is_less_than) paste0("p &lt; 0.001", stars) else paste0("p = 0", sub("^\\(", "", sub("\\)$", "", match)), stars) }, character(1))
         regmatches(html, m)[[1]] <- replacements }
       r_pattern <- "(<td[^>]*class=\"tdata[^\"]*\"[^>]*>)(-?[01]?\\.[0-9]{2,3})(<br)"
       html <- gsub(r_pattern, "\\1r = \\2\\3", html)
@@ -241,7 +241,8 @@ scatterplot <- function(data, xvar, yvar) {
     ok <- stats::complete.cases(data[[xvar]], data[[yvar]])
     test <- stats::cor.test(data[[xvar]][ok], data[[yvar]][ok])
     stars <- if (test$p.value < .001) "***" else if (test$p.value < .01) "**" else if (test$p.value < .05) "*" else ""
-    label_text <- paste0("r = ", formatC(unname(test$estimate), format = "f", digits = 3), ", p = ", formatC(test$p.value, format = "f", digits = 3), stars)
+    p_text <- if (test$p.value < .001) "p < 0.001" else paste0("p = ", formatC(test$p.value, format = "f", digits = 3))
+    label_text <- paste0("r = ", formatC(unname(test$estimate), format = "f", digits = 3), ", ", p_text, stars)
     ggpubr::ggscatter(data, x = xvar, y = yvar, add = "loess", conf.int = TRUE, point = FALSE,
       xlab = sjlabelled::get_label(data[[xvar]], def.value = xvar),
       ylab = sjlabelled::get_label(data[[yvar]], def.value = yvar)) +
@@ -273,7 +274,7 @@ pairs_panels_pval <- function(...) {
       p <- test$p.value
       r_txt <- paste0("r=", formatC(r, digits = 3, format = "f"))
       stars <- if (p < .001) "***" else if (p < .01) "**" else if (p < .05) "*" else ""
-      p_txt <- paste0("p=", formatC(p, digits = 3, format = "f"))
+      p_txt <- if (p < .001) "p<0.001" else paste0("p=", formatC(p, digits = 3, format = "f"))
       text(0.5, 0.62, r_txt, cex = cex_text, col = "black")
       text(0.5, 0.30, paste0(p_txt, stars), cex = cex_text, col = "gray25") }
     diag_panel <- function(x, ...) {
@@ -327,8 +328,9 @@ tab_model <- function(...) {
           if (is_less_than) p_val <- p_val - 1e-10
           stars <- if (p_val < .001) "***" else if (p_val < .01) "**" else if (p_val < .05) "*" else ""
           cell_open <- sub("(<td[^>]*>).*", "\\1", match)
-          if (nzchar(stars)) paste0(cell_open, "<strong>", formatC(p_val + if (is_less_than) 1e-10 else 0, digits = 3, format = "f"), stars, "</strong></td>")
-          else paste0(cell_open, formatC(p_val, digits = 3, format = "f"), "</td>") }, character(1))
+          p_text <- paste0(if (is_less_than) "&lt;" else "", formatC(p_val + if (is_less_than) 1e-10 else 0, digits = 3, format = "f"))
+          if (nzchar(stars)) paste0(cell_open, "<strong>", p_text, stars, "</strong></td>")
+          else paste0(cell_open, p_text, "</td>") }, character(1))
         regmatches(html, m)[[1]] <- replacements }
       html <- gsub("([A-Za-z])'([A-Za-z])", "\\1' \\2", html)
       html }
@@ -1203,6 +1205,23 @@ has_incorrect_code_problem <- grepl(
   recent_warnings <- .clean_msg(.get_recent_warnings())
   formula_variables <- identical(conditionCall(e), quote(eval(predvars, data, env))) ||
     grepl("^Error in eval\\(predvars,\\s*data,\\s*env\\)", raw_msg)
+  function_variable <- regmatches(msg,
+    regexec("invalid type \\((?:closure|builtin|special)\\) for variable '([^']+)'", msg, perl = TRUE))[[1]]
+  if (length(function_variable) == 2) {
+    calls <- c(list(conditionCall(e)), rev(sys.calls()))
+    for (call in Filter(is.call, calls)) {
+      if (.call_name(call) != "model.frame.default") next
+      data_expr <- as.list(call)$data
+      if (!is.symbol(data_expr)) next
+      data_name <- as.character(data_expr)
+      for (frame in c(rev(sys.frames()), list(.GlobalEnv))) {
+        if (!exists(data_name, envir = frame, inherits = FALSE)) next
+        data <- tryCatch(get(data_name, envir = frame, inherits = FALSE), error = function(e) NULL)
+        if (is.data.frame(data) && !function_variable[2] %in% names(data)) {
+          msg <- paste0("These variables do not exist: ", function_variable[2])
+          formula_variables <- TRUE}
+        break}
+      break}}
   sections <- .problem_sections(msg, location, formula_variables)
 
   .show_viewer(paste0(
@@ -1254,6 +1273,7 @@ counts <- tryCatch({
   label_lookup <- character(0)
 
   if (!is.null(value_labels)) {
+    value_labels <- value_labels[!is.na(value_labels)]
     label_lookup <- setNames(names(value_labels), as.character(unname(value_labels)))
     label_names <- names(label_lookup)
     missing_label_values <- label_names[!label_names %in% value_names]
