@@ -55,7 +55,7 @@ ifelse(gss$sei10 <= 40, 1, 0,
 label = "Having low socio-economic status")
 
 gss$moderateses <- 
-ifelse(gss$sei10 >= 40 & gss$sei10 <= 75, 1, 0,
+ifelse(gss$sei10 >= 41 & gss$sei10 <= 75, 1, 0,
 label = "Having moderate socio-economic status")
 
 gss$highses <- 
