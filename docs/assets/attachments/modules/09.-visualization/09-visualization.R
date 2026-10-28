@@ -83,14 +83,15 @@ axis.text.y = element_text(size = 11),
 plot.title = element_text(size = 12),
 legend.text = element_text(size = 11))
 
-graph <- gss |> 
-select(natsci, nateduc, natspac) |> 
-plot_stackfrq(sort.frq = "first.asc",  geom.colors = "Blues", 
-show.total = FALSE, title = "Attitudes on government expenditure for science") 
+graph <- plot_xtab(
+gss$nateduc, gss$degree, show.n = FALSE,
+geom.colors = "Dark2",
+show.total = FALSE, title = "Support level for government spending for improving the nation's education system by respondents' education degree")
 graph + theme(
-axis.text.x = element_text(size=11), 
-axis.text.y = element_text(size=11), 
-plot.title = element_text(size=13), 
-legend.text = element_text(size=12))
+axis.text.x = element_text(size = 11),
+axis.text.y = element_text(size = 11),
+plot.title = element_text(size = 13),
+legend.text = element_text(size = 12))
+
 
 
