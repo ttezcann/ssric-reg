@@ -17,9 +17,9 @@ plot.title = element_text(size=12),
 legend.text = element_text(size=11))
 
 
-# Stacked bar graph by groups ---------------------------------------------
+# Grouped bar graph ---------------------------------------------
 graph <- plot_xtab(
-gss$health, gss$conmedic, show.n = FALSE,
+gss$health, gss$conmedic, show.n = FALSE, margin = "row",
 geom.colors = "Dark2",
 show.total = FALSE, title = "Confidence level in medicine by perceived personal health quality")
 graph + theme(
@@ -27,7 +27,6 @@ axis.text.x = element_text(size = 11),
 axis.text.y = element_text(size = 11),
 plot.title = element_text(size = 12),
 legend.text = element_text(size = 11))
-
 
 
 # WORKING SPACE -----------------------------------------------------------
@@ -74,7 +73,7 @@ legend.text = element_text(size=10))
 
 ### 2) ----------------------------------------------------------------------
 graph <- plot_xtab(
-gss$outcome_here, gss$factor_here, show.n = FALSE,
+gss$factor_here, gss$outcome_here, show.n = FALSE, margin = "row",
 geom.colors = "Dark2",
 show.total = FALSE, title = "title_here")
 graph + theme(
@@ -84,7 +83,7 @@ plot.title = element_text(size = 12),
 legend.text = element_text(size = 11))
 
 graph <- plot_xtab(
-gss$nateduc, gss$degree, show.n = FALSE,
+gss$degree, gss$nateduc, show.n = FALSE, margin = "row",
 geom.colors = "Dark2",
 show.total = FALSE, title = "Support level for government spending for improving the nation's education system by respondents' education degree")
 graph + theme(
