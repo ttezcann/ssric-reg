@@ -183,6 +183,9 @@ Click any keyword to see every occurrence with full context.
 <strong><button type="button" class="wikilink" data-keyword="graphs" aria-haspopup="true">graphs</button></strong> — *1 page*  
 [Graphs](resources/site-guide/graphs/)
 
+<strong><button type="button" class="wikilink" data-keyword="grouped bar graph" aria-haspopup="true">grouped bar graph</button></strong> — *1 page*  
+[09. Visualization](modules/09.-visualization/)
+
 <strong><button type="button" class="wikilink" data-keyword="gss" aria-haspopup="true">gss</button></strong> — *1 page*  
 [01. Introduction to RStudio](modules/01.-introduction-to-rstudio/)
 
@@ -457,9 +460,6 @@ Click any keyword to see every occurrence with full context.
 <strong><button type="button" class="wikilink" data-keyword="software" aria-haspopup="true">software</button></strong> — *1 page*  
 [01. Introduction to RStudio](modules/01.-introduction-to-rstudio/)
 
-<strong><button type="button" class="wikilink" data-keyword="stacked bar graph by groups" aria-haspopup="true">stacked bar graph by groups</button></strong> — *1 page*  
-[09. Visualization](modules/09.-visualization/)
-
 <strong><button type="button" class="wikilink" data-keyword="stacked bar graph for multiple variables" aria-haspopup="true">stacked bar graph for multiple variables</button></strong> — *1 page*  
 [09. Visualization](modules/09.-visualization/)
 
@@ -600,6 +600,9 @@ Click any keyword to see every occurrence with full context.
 <strong><button type="button" class="wikilink" data-keyword="frequency table" aria-haspopup="true">frequency table</button></strong> — *15 mentions · 3 pages*  
 [03. Descriptive statistics](modules/03.-descriptive-statistics/) · [04. Recoding variables](modules/04.-recoding-variables/) · [15. Regression assumptions and diagnostics](modules/15.-regression-assumptions-diagnostics/)
 
+<strong><button type="button" class="wikilink" data-keyword="scatterplot graph" aria-haspopup="true">scatterplot graph</button></strong> — *14 mentions · 1 page*  
+[10. Correlation analysis](modules/10.-correlation-analysis/)
+
 <strong><button type="button" class="wikilink" data-keyword="reversing values" aria-haspopup="true">reversing values</button></strong> — *13 mentions · 2 pages*  
 [04. Recoding variables](modules/04.-recoding-variables/) · [05. Computing variables](modules/05.-computing-variables/)
 
@@ -619,9 +622,6 @@ Click any keyword to see every occurrence with full context.
 [04. Recoding variables](modules/04.-recoding-variables/)
 
 <strong><button type="button" class="wikilink" data-keyword="correlation table" aria-haspopup="true">correlation table</button></strong> — *10 mentions · 1 page*  
-[10. Correlation analysis](modules/10.-correlation-analysis/)
-
-<strong><button type="button" class="wikilink" data-keyword="scatterplot graph" aria-haspopup="true">scatterplot graph</button></strong> — *10 mentions · 1 page*  
 [10. Correlation analysis](modules/10.-correlation-analysis/)
 
 <strong><button type="button" class="wikilink" data-keyword="scatterplot graph matrix" aria-haspopup="true">scatterplot graph matrix</button></strong> — *10 mentions · 2 pages*  
@@ -672,6 +672,9 @@ Click any keyword to see every occurrence with full context.
 <strong><button type="button" class="wikilink" data-keyword="correlation table matrix" aria-haspopup="true">correlation table matrix</button></strong> — *4 mentions · 1 page*  
 [10. Correlation analysis](modules/10.-correlation-analysis/)
 
+<strong><button type="button" class="wikilink" data-keyword="grouped bar graph" aria-haspopup="true">grouped bar graph</button></strong> — *4 mentions · 1 page*  
+[09. Visualization](modules/09.-visualization/)
+
 <strong><button type="button" class="wikilink" data-keyword="null hypothesis" aria-haspopup="true">null hypothesis</button></strong> — *4 mentions · 3 pages*  
 [06. Chi-square analysis](modules/06.-chi-square-analysis/) · [07. T-test analysis](modules/07.-t-test-analysis/) · [10. Correlation analysis](modules/10.-correlation-analysis/)
 
@@ -683,9 +686,6 @@ Click any keyword to see every occurrence with full context.
 
 <strong><button type="button" class="wikilink" data-keyword="predictive modeling" aria-haspopup="true">predictive modeling</button></strong> — *4 mentions · 1 page*  
 [11. Linear regression basics](modules/11.-linear-regression-basics/)
-
-<strong><button type="button" class="wikilink" data-keyword="stacked bar graph by groups" aria-haspopup="true">stacked bar graph by groups</button></strong> — *4 mentions · 1 page*  
-[09. Visualization](modules/09.-visualization/)
 
 <strong><button type="button" class="wikilink" data-keyword="stacked bar graph for multiple variables" aria-haspopup="true">stacked bar graph for multiple variables</button></strong> — *4 mentions · 1 page*  
 [09. Visualization](modules/09.-visualization/)
@@ -716,6 +716,9 @@ Click any keyword to see every occurrence with full context.
 
 <strong><button type="button" class="wikilink" data-keyword="site graph" aria-haspopup="true">site graph</button></strong> — *3 mentions · 1 page*  
 [Graphs](resources/site-guide/graphs/)
+
+<strong><button type="button" class="wikilink" data-keyword="strength of correlation" aria-haspopup="true">strength of correlation</button></strong> — *3 mentions · 1 page*  
+[10. Correlation analysis](modules/10.-correlation-analysis/)
 
 <strong><button type="button" class="wikilink" data-keyword="tjur r-squared" aria-haspopup="true">tjur r-squared</button></strong> — *3 mentions · 2 pages*  
 [13. Logistic regression basics](modules/13.-logistic-regression-basics/) · [14. Modeling exercises](modules/14.-modeling-exercises/)
@@ -1020,9 +1023,6 @@ Click any keyword to see every occurrence with full context.
 <strong><button type="button" class="wikilink" data-keyword="steps of using rstudio" aria-haspopup="true">steps of using rstudio</button></strong> — *1 mention · 1 page*  
 [01. Introduction to RStudio](modules/01.-introduction-to-rstudio/)
 
-<strong><button type="button" class="wikilink" data-keyword="strength of correlation" aria-haspopup="true">strength of correlation</button></strong> — *1 mention · 1 page*  
-[10. Correlation analysis](modules/10.-correlation-analysis/)
-
 <strong><button type="button" class="wikilink" data-keyword="strong correlation" aria-haspopup="true">strong correlation</button></strong> — *1 mention · 1 page*  
 [10. Correlation analysis](modules/10.-correlation-analysis/)
 
@@ -1142,7 +1142,7 @@ Click any keyword to see every occurrence with full context.
 
 > 2 new<span class="glossary-module-count--recurring"> + 3 recurring</span>
 
-<div class="glossary-module-concepts"><span class="glossary-tag"><strong><button type="button" class="wikilink" data-keyword="stacked bar graph for multiple variables" aria-haspopup="true">stacked bar graph for multiple variables</button></strong></span><span class="glossary-tag glossary-tag--recurring"><strong><button type="button" class="wikilink" data-keyword="categorical" aria-haspopup="true">categorical</button></strong></span><span class="glossary-tag"><strong><button type="button" class="wikilink" data-keyword="stacked bar graph by groups" aria-haspopup="true">stacked bar graph by groups</button></strong></span><span class="glossary-tag glossary-tag--recurring"><strong><button type="button" class="wikilink" data-keyword="factor variable" aria-haspopup="true">factor variable</button></strong></span><span class="glossary-tag glossary-tag--recurring"><strong><button type="button" class="wikilink" data-keyword="outcome variable" aria-haspopup="true">outcome variable</button></strong></span></div>
+<div class="glossary-module-concepts"><span class="glossary-tag"><strong><button type="button" class="wikilink" data-keyword="stacked bar graph for multiple variables" aria-haspopup="true">stacked bar graph for multiple variables</button></strong></span><span class="glossary-tag glossary-tag--recurring"><strong><button type="button" class="wikilink" data-keyword="categorical" aria-haspopup="true">categorical</button></strong></span><span class="glossary-tag"><strong><button type="button" class="wikilink" data-keyword="grouped bar graph" aria-haspopup="true">grouped bar graph</button></strong></span><span class="glossary-tag glossary-tag--recurring"><strong><button type="button" class="wikilink" data-keyword="factor variable" aria-haspopup="true">factor variable</button></strong></span><span class="glossary-tag glossary-tag--recurring"><strong><button type="button" class="wikilink" data-keyword="outcome variable" aria-haspopup="true">outcome variable</button></strong></span></div>
 
 ## 10. Correlation analysis
 
