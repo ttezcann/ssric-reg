@@ -299,6 +299,27 @@ pairs_panels_pval <- function(...) {
       rm(fit, xs, ys); invisible(gc(verbose = FALSE)) }
     do.call(pairs, c(list(x = data, upper.panel = upper_panel, lower.panel = lower_panel, diag.panel = diag_panel, gap = 0.3), other_args)) })}
 
+## model fitting ----
+lm <- function(...) {
+  call <- match.call()
+  env <- parent.frame()
+  .run_with_viewer_feedback({
+    original_name <- call[[1]]
+    call[[1]] <- quote(stats::lm)
+    result <- eval(call, envir = env)
+    if (inherits(result, "lm")) result$call[[1]] <- original_name
+    result })}
+
+glm <- function(...) {
+  call <- match.call()
+  env <- parent.frame()
+  .run_with_viewer_feedback({
+    original_name <- call[[1]]
+    call[[1]] <- quote(stats::glm)
+    result <- eval(call, envir = env)
+    if (inherits(result, "glm")) result$call[[1]] <- original_name
+    result })}
+
 ## tab_model ----
 tab_model <- function(...) {
   .run_with_viewer_feedback({
