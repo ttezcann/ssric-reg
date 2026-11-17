@@ -59,7 +59,7 @@ ifelse(gss$sei10 >= 41 & gss$sei10 <= 75, 1, 0,
 label = "Having moderate socio-economic status")
 
 gss$highses <- 
-ifelse(gss$sei10 >=76, 1, 0,
+ifelse(gss$sei10 >= 76, 1, 0,
 label = "Having high socio-economic status")
 
 
@@ -194,7 +194,7 @@ label = "Being dissatisfied with work")
 #### 4.1) -----------------------------------------------------------------
 descr(gss$variable_here, out = "v", show = "short")
 
-descr(gss$conrinc, out = "v", show = "short")
+descr(gss$coninc, out = "v", show = "short")
 
 
 #### 4.2) -----------------------------------------------------------------
@@ -212,15 +212,15 @@ label = "Dummy variable's variable label")
 
 
 gss$lowfamincome <- 
-ifelse(gss$conrinc <= 30000, 1, 0,
+ifelse(gss$coninc <= 30000, 1, 0,
 label = "Having low family income")
 
 gss$mediumfamincome <- 
-ifelse(gss$conrinc >= 30001 & gss$conrinc <= 70000, 1, 0,
+ifelse(gss$coninc >= 30001 & gss$coninc <= 70000, 1, 0,
 label = "Having medium family income")
 
 gss$highfamincome <- 
-ifelse(gss$conrinc >=70001, 1, 0,
+ifelse(gss$coninc >= 70001, 1, 0,
 label = "Having high family income")
 
 ### 5) --------------------------------------------------------------------
