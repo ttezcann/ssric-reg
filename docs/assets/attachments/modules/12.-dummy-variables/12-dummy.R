@@ -207,7 +207,7 @@ ifelse(gss$orig_var >= lowest_value & gss$orig_var <= highest_value, 1, 0,
 label = "Dummy variable's variable label")
 
 gss$dummyvar3 <- 
-ifelse(gss$orig_var => value, 1, 0,
+ifelse(gss$orig_var >= value, 1, 0,
 label = "Dummy variable's variable label")
 
 
